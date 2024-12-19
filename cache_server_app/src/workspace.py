@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.10
+#!/usr/bin/env python3.12
 """
 workspace
 
@@ -11,7 +11,8 @@ Date: 1.5.2024
 from cache_server_app.src.binary_cache import BinaryCache
 from cache_server_app.src.database import CacheServerDatabase
 
-class Workspace():
+
+class Workspace:
     """
     Class to represent deployment workspace.
 
@@ -36,13 +37,13 @@ class Workspace():
         if not row:
             return None
         return Workspace(row[0], row[1], row[2], BinaryCache.get(row[3]))
-    
+
     def get_by_token(token: str):
         row = CacheServerDatabase().get_workspace_row_by_token(token)
         if not row:
             return None
         return Workspace(row[0], row[1], row[2], BinaryCache.get(row[3]))
-    
+
     def save(self) -> None:
         self.database.insert_workspace(self.id, self.name, self.token, self.cache.name)
 

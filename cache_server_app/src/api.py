@@ -1,55 +1,56 @@
-#!/usr/bin/env python3.10
+#!/usr/bin/env python3.12
 """
 api
 
 Module containing classes for HTTP and WebSocket APIs.
 
-Author: Marek Križan
+Author: Marek Križan, Radim Mifka
 Date: 1.5.2024
 """
 
-import re
-import os
-import json
-import uuid
 import asyncio
-import websockets
 import base64
-
+import json
+import os
+import re
+import uuid
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+import websockets
+
+from cache_server_app.src.agent import Agent
 from cache_server_app.src.binary_cache import BinaryCache
 from cache_server_app.src.store_path import StorePath
-from cache_server_app.src.agent import Agent
+
 
 class HTTPCacheServer(HTTPServer):
     def __init__(self, server_address, request_handler, websocket_handler):
         self.websocket_handler = websocket_handler
         super().__init__(server_address, request_handler)
 
+
 class CacheServerRequestHandler(BaseHTTPRequestHandler):
     """
     Class to handle cache-server HTTP requests.
     """
-    
-    def do_GET(self) -> None:
-        if m := re.match(r"^/api/v1/cache/([a-z0-9]*)", self.path):
 
+    def do_GET(self) -> None:
+        if m := re.match(r"^/api/v1/cache/([a-z0-9]*)(\?)?", self.path):
             cache = BinaryCache.get(m.group(1))
             if not cache:
                 self.send_response(400)
                 self.end_headers()
                 return
-            
-            if cache.access == 'private':
+
+            if cache.access == "private":
                 if self.headers["Authorization"].split()[1] != cache.token:
                     self.send_response(401)
                     self.end_headers()
-                    return
-            
+
             # /api/v1/cache/{name}
-            if m := re.match(r"^/api/v1/cache/([a-z0-9]*)\?$", self.path):
-                response = cache.cache_json('Read').encode('utf-8')
+            if m := re.match(r"^/api/v1/cache/([a-z0-9]*)(\?)?$", self.path):
+                response = cache.cache_json("Read").encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(response)))
@@ -57,18 +58,27 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(response)
 
         # /api/v1/deploy/deployment/{uuid}
-        elif m := re.match(r"^/api/v1/deploy/deployment/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})\?", self.path):
+        elif m := re.match(
+            r"^/api/v1/deploy/deployment/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})(\?)?",
+            self.path,
+        ):
             deploy_id = m.group(1)
             deploy_status = self.server.websocket_handler.deployments[deploy_id]
-            response = json.dumps({
-                "closureSize": 0,
-                "createdOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                "id": deploy_id,
-                "index": 0,
-                "startedOn": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                "status": deploy_status,
-                "storePath": ""
-                }).encode('utf-8')
+            response = json.dumps(
+                {
+                    "closureSize": 0,
+                    "createdOn": datetime.now(timezone.utc).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    "id": deploy_id,
+                    "index": 0,
+                    "startedOn": datetime.now(timezone.utc).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    ),
+                    "status": deploy_status,
+                    "storePath": "",
+                }
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(response)))
@@ -80,25 +90,27 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self) -> None:
-
         if m := re.match(r"^/api/v1/cache/([a-z0-9]*)", self.path):
 
             cache = BinaryCache.get(m.group(1))
+
             if not cache:
                 self.send_response(400)
                 self.end_headers()
                 return
-            
+
             if self.headers["Authorization"].split()[1] != cache.token:
                 self.send_response(401)
                 self.end_headers()
                 return
 
             # /api/v1/cache/{name}/narinfo
-            if re.match(r"^/api/v1/cache/[a-z0-9]*/narinfo\?$", self.path):
-                content_length = int(self.headers['Content-Length'])
-                body = json.loads(self.rfile.read(content_length).decode('utf-8'))
-                response = json.dumps(cache.get_missing_store_hashes(body)).encode('utf-8')
+            if re.match(r"^/api/v1/cache/[a-z0-9]*/narinfo(\?)?$", self.path):
+                content_length = int(self.headers["Content-Length"])
+                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                response = json.dumps(cache.get_missing_store_hashes(body)).encode(
+                    "utf-8"
+                )
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(response)))
@@ -106,32 +118,28 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(response)
 
             # /api/v1/cache/{name}/multipart-nar
-            elif m := re.match(r"^/api/v1/cache/[a-z0-9]*/multipart-nar\?compression=(xz|zst)$", self.path):
+            elif m := re.match(
+                r"^/api/v1/cache/[a-z0-9]*/multipart-nar\?compression=(xz|zst)$",
+                self.path,
+            ):
                 id = uuid.uuid4()
                 response = """{{
                     "narId": "{}",
                     "uploadId": "{}"
-                    }}""".format(id, id).encode('utf-8')
-                
-                new_file = os.path.join(cache.cache_dir, '{}.nar.{}'.format(id, m.group(1)))
-                with open(new_file, 'w') as nf: #create new file for uploading nar
-                    pass
+                    }}""".format(
+                    id, id
+                ).encode(
+                    "utf-8"
+                )
 
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(response)))
-                self.end_headers()
-                self.wfile.write(response)
+                # new_file = os.path.join(
+                #     cache.cache_dir, "{}.nar.{}".format(id, m.group(1))
+                # )
+                # with open(new_file, "w") as nf:  # create new file for uploading nar
+                #     pass
 
-            # /api/v1/cache/{name}/multipart-nar/{narUuid}
-            elif m := re.match(r"^/api/v1/cache/[a-z0-9]+/multipart-nar/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})\?", self.path):
-                
-                content_length = int(self.headers['Content-Length'])
-                body = json.loads(self.rfile.read(content_length).decode('utf-8'))
-                upload_url = os.path.join(cache.url, m.group(1))
-                response = """{{
-                    "uploadUrl": "{}"
-                }}""".format(upload_url).encode('utf-8')
+                cache.storage.new_file(f"{id}.nar.{m.group(1)}")
+
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(response)))
@@ -139,80 +147,124 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(response)
 
             # /api/v1/cache/{name}/multipart-nar/{narUuid}/complete
-            elif m := re.match(r"^/api/v1/cache/[a-z0-9]+/multipart-nar/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})/complete\?", self.path):
-                
-                content_length = int(self.headers['Content-Length'])
-                body = json.loads(self.rfile.read(content_length).decode('utf-8'))
-                narinfo_create = body['narInfoCreate']
+            elif m := re.match(
+                r"^/api/v1/cache/[a-z0-9]+/multipart-nar/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})/complete(\?)?",
+                self.path,
+            ):
+                content_length = int(self.headers["Content-Length"])
+                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                narinfo_create = body["narInfoCreate"]
 
-                for f in os.listdir(cache.cache_dir):
-                    if m.group(1) in f:
-                        filename = f
+                # for f in os.listdir(cache.cache_dir):
+                #     if m.group(1) in f:
+                #         filename = f
+
+                name = m.group(1)
+                filename = cache.storage.find(name)
 
                 StorePath(
-                    id = uuid.uuid4(),
-                    store_hash = narinfo_create['cStoreHash'],
-                    store_suffix = narinfo_create['cStoreSuffix'],
-                    file_hash = narinfo_create['cFileHash'],
-                    file_size = narinfo_create['cFileSize'],
-                    nar_hash = narinfo_create['cNarHash'],
-                    nar_size = narinfo_create['cNarSize'],
-                    deriver = narinfo_create['cDeriver'],
-                    references = narinfo_create['cReferences'],
-                    cache = cache
+                    id=uuid.uuid4(),
+                    store_hash=narinfo_create["cStoreHash"],
+                    store_suffix=narinfo_create["cStoreSuffix"],
+                    file_hash=narinfo_create["cFileHash"],
+                    file_size=narinfo_create["cFileSize"],
+                    nar_hash=narinfo_create["cNarHash"],
+                    nar_size=narinfo_create["cNarSize"],
+                    deriver=narinfo_create["cDeriver"],
+                    references=narinfo_create["cReferences"],
+                    cache=cache,
                 ).save()
 
-                os.rename(
-                    os.path.join(cache.cache_dir, filename), 
-                    os.path.join(cache.cache_dir, '{}.nar{}'.format(body['narInfoCreate']['cFileHash'], os.path.splitext(filename)[1]))
+                new_filename = "{}.nar{}".format(
+                    narinfo_create["cFileHash"], os.path.splitext(filename)[1]
                 )
-                
+
+                cache.storage.rename(filename, new_filename)
+
+                # os.rename(
+                #     path,
+                #     os.path.join(
+                #         cache.cache_dir,
+                #         "{}.nar{}".format(
+                #             body["narInfoCreate"]["cFileHash"],
+                #             os.path.splitext(filename)[1],
+                #         ),
+                #     ),
+                # )
+
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
 
             # /api/v1/cache/{name}/multipart-nar/{narUuid}/abort
-            elif m := re.match(r"^/api/v1/cache/[a-z0-9]+/multipart-nar/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})/abort\?", self.path):
+            elif m := re.match(
+                r"^/api/v1/cache/[a-z0-9]+/multipart-nar/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})/abort(\?)?",
+                self.path,
+            ):
 
-                filename = None
-                for f in os.listdir(cache.cache_dir):
-                    if m.group(1) in f:
-                        filename = f
+                # filename = None
+                # for f in os.listdir(cache.cache_dir):
+                #     if m.group(1) in f:
+                #         filename = f
+
+                name = m.group(1)
+                filename = cache.storage.find(name)
 
                 if filename == None:
                     self.send_response(400)
                     self.end_headers()
                     return
-                
-                os.remove(os.path.join(cache.cache_dir, filename))
+
+                cache.storage.remove(filename)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
 
+            # /api/v1/cache/{name}/multipart-nar/{narUuid}
+            elif m := re.match(
+                r"^/api/v1/cache/[a-z0-9]+/multipart-nar/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})(\?)?",
+                self.path,
+            ):
+
+                content_length = int(self.headers["Content-Length"])
+                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                upload_url = os.path.join(cache.url, m.group(1))
+                response = """{{
+                    "uploadUrl": "{}"
+                }}""".format(
+                    upload_url
+                ).encode(
+                    "utf-8"
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+
         # /api/v2/deploy/activate
-        elif m := re.match(r"^/api/v2/deploy/activate\?", self.path):
-            content_length = int(self.headers['Content-Length'])
-            body = json.loads(self.rfile.read(content_length).decode('utf-8'))
+        elif m := re.match(r"^/api/v2/deploy/activate(\?)", self.path):
+            content_length = int(self.headers["Content-Length"])
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
             agents = {}
 
-            for agent, path in body['agents'].items():
+            for agent, path in body["agents"].items():
                 if not Agent.get(agent):
                     self.send_response(400)
                     self.end_headers()
                     return
-                
-                deploy_id = str(uuid.uuid4())
-                agent_item = {
-                    "id": deploy_id,
-                    "url": ""
-                }
-                agents[f"{agent}"] = agent_item
-                asyncio.run(self.server.websocket_handler.start_deployment(agent, path, deploy_id))
 
-            response = json.dumps({
-                "agents": agents
-            }).encode('utf-8')
+                deploy_id = str(uuid.uuid4())
+                agent_item = {"id": deploy_id, "url": ""}
+                agents[f"{agent}"] = agent_item
+                asyncio.run(
+                    self.server.websocket_handler.start_deployment(
+                        agent, path, deploy_id
+                    )
+                )
+
+            response = json.dumps({"agents": agents}).encode("utf-8")
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -223,11 +275,13 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
         else:
             self.send_response(400)
             self.end_headers()
-            
+
+
 class HTTPBinaryCache(HTTPServer):
     def __init__(self, server_address, request_handler, cache: BinaryCache):
         self.cache = cache
         super().__init__(server_address, request_handler)
+
 
 class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
     """
@@ -236,15 +290,22 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
 
-        if self.server.cache.access == 'private':
-            if base64.b64decode(self.headers['Authorization'].split()[1]).decode('utf-8')[1:] != self.server.cache.token:
+        if self.server.cache.access == "private":
+            if (
+                base64.b64decode(self.headers["Authorization"].split()[1]).decode(
+                    "utf-8"
+                )[1:]
+                != self.server.cache.token
+            ):
                 self.send_response(401)
                 self.end_headers()
                 return
 
         # /nix-cache-info
         if m := re.match(r"^/nix-cache-info$", self.path):
-            response = "Priority: 30\nStoreDir: /nix/store\nWantMassQuery: 1\n".encode('utf-8')
+            response = "Priority: 30\nStoreDir: /nix/store\nWantMassQuery: 1\n".encode(
+                "utf-8"
+            )
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Length", str(len(response)))
@@ -252,15 +313,15 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(response)
 
         # /{storeHash}.narinfo
-        elif m := re.match(r"^/([a-z0-9]+)\.narinfo$", self.path):
+        elif m := re.match(r"^\/([a-z0-9]+)\.narinfo$", self.path):
 
-            path = StorePath.get(self.server.cache.name, store_hash = m.group(1))
+            path = StorePath.get(self.server.cache.name, store_hash=m.group(1))
             if not path:
                 self.send_response(404)
                 self.end_headers()
                 return
 
-            response = path.get_narinfo().encode('utf-8')
+            response = path.get_narinfo().encode("utf-8")
 
             self.send_response(200)
             self.send_header("Content-Type", "text/x-nix-narinfo")
@@ -276,31 +337,35 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
                 self.send_response(404)
                 self.end_headers()
                 return
-            
-            nar_file = os.path.join(path.cache.cache_dir, '{}.nar.{}'.format(m.group(1), m.group(2)))
-            with open(nar_file, 'rb') as file: 
-                response = file.read()
-            
+
+            nar_file = "{}.nar.{}".format(m.group(1), m.group(2))
+
+            # with open(nar_file, "rb") as file:
+            #     response = file.read()
+
+            response = self.server.cache.storage.read(nar_file, binary=True)
+
             self.send_response(200)
             self.send_header("Content-Type", "text/x-nix-narinfo")
             self.send_header("Content-Length", str(len(response)))
             self.end_headers()
             self.wfile.write(response)
-            
+
         else:
             self.send_response(400)
             self.end_headers()
 
     def do_PUT(self) -> None:
         # /{narUuid}
-        if m := re.match(r"^/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})$", self.path):
-            
-            content_length = int(self.headers['Content-Length'])
+        if m := re.match(
+            r"^/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})$",
+            self.path,
+        ):
 
-            filename = None
-            for f in os.listdir(self.server.cache.cache_dir):
-                if m.group(1) in f:
-                    filename = f
+            content_length = int(self.headers["Content-Length"])
+
+            name = m.group(1)
+            filename = self.server.cache.storage.find(name)
 
             if not filename:
                 self.send_response(400)
@@ -308,8 +373,14 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
                 return
 
             body = self.rfile.read(content_length)
-            with open(os.path.join(self.server.cache.cache_dir, filename), "wb") as file:
-                file.write(body)
+
+            self.server.cache.storage.save(filename, body)
+
+            # with open(
+            #     os.path.join(self.server.cache.cache_dir, filename), "wb"
+            # ) as file:
+            #     file.write(body)
+
             self.send_response(201)
             self.send_header("Content-Location", "/")
             self.end_headers()
@@ -319,28 +390,34 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self) -> None:
 
-        if self.server.cache.access == 'private':
-            if base64.b64decode(self.headers['Authorization'].split()[1]).decode('utf-8')[1:] != self.server.cache.token:
+        if self.server.cache.access == "private":
+            if (
+                base64.b64decode(self.headers["Authorization"].split()[1]).decode(
+                    "utf-8"
+                )[1:]
+                != self.server.cache.token
+            ):
                 self.send_response(401)
                 self.end_headers()
                 return
 
         # /{storeHash}.narinfo
-        if m := re.match(r"^/([a-z0-9]+)\.narinfo", self.path):
+        if m := re.match(r"^\/([a-z0-9]+)\.narinfo", self.path):
 
-            path = StorePath.get(self.server.cache.name, store_hash = m.group(1))
+            path = StorePath.get(self.server.cache.name, store_hash=m.group(1))
             if not path:
                 self.send_response(400)
                 self.end_headers()
                 return
-            
+
             self.send_response(200)
             self.end_headers()
         else:
             self.send_response(400)
             self.end_headers()
 
-class WebSocketConnectionHandler():
+
+class WebSocketConnectionHandler:
     """
     Class to handle cache-server WebSocket connections.
 
@@ -356,29 +433,31 @@ class WebSocketConnectionHandler():
         self.deployments = {}
 
     async def agent_handler(self, websocket):
-        agent = Agent.get(websocket.request_headers['name'])
+        agent = Agent.get(websocket.request_headers["name"])
 
         try:
             if not agent:
                 await websocket.close()
-            if websocket.request_headers['Authorization'].split()[1] != agent.token:
+            if websocket.request_headers["Authorization"].split()[1] != agent.token:
                 await websocket.close()
-            
+
             cache = agent.workspace.cache
             self.agents[agent.name] = websocket
-            message = json.dumps({
-                "agent": agent.id,
-                "command": {
-                    "contents": {
-                        "cache": cache.cache_workspace_dict(),
-                        "id": agent.id
+            message = json.dumps(
+                {
+                    "agent": agent.id,
+                    "command": {
+                        "contents": {
+                            "cache": cache.cache_workspace_dict(),
+                            "id": agent.id,
+                        },
+                        "tag": "AgentRegistered",
                     },
-                    "tag": "AgentRegistered"
-                },
-                "id": "00000000-0000-0000-0000-000000000000",
-                "method": "AgentRegistered"
-            })
-                
+                    "id": "00000000-0000-0000-0000-000000000000",
+                    "method": "AgentRegistered",
+                }
+            )
+
             await websocket.send(message)
 
             async for message in websocket:
@@ -393,60 +472,64 @@ class WebSocketConnectionHandler():
         try:
             async for message in websocket:
                 message_dict = json.loads(message)
-                if message_dict['method'] == 'DeploymentFinished':
-                    if message_dict['command']['hasSucceeded']:
-                        self.deployments[message_dict['command']['id']] = 'Succeeded'
+                if message_dict["method"] == "DeploymentFinished":
+                    if message_dict["command"]["hasSucceeded"]:
+                        self.deployments[message_dict["command"]["id"]] = "Succeeded"
                     else:
-                        self.deployments[message_dict['command']['id']] = 'Failed'
+                        self.deployments[message_dict["command"]["id"]] = "Failed"
                     await websocket.close()
 
         except websockets.exceptions.ConnectionClosed:
             pass
 
     async def log_handler(self, websocket):
-        if 'name' not in websocket.request_headers.keys():
+        if "name" not in websocket.request_headers.keys():
             await websocket.close()
         try:
             async for message in websocket:
                 message_dict = json.loads(message)
-                if message_dict['line'] == 'Successfully activated the deployment.':
+                if message_dict["line"] == "Successfully activated the deployment.":
                     await websocket.close()
-                if "Failed to activate the deployment." in message_dict['line']:
+                if "Failed to activate the deployment." in message_dict["line"]:
                     await websocket.close()
 
         except websockets.exceptions.ConnectionClosed:
             pass
 
     async def handler(self, websocket, path):
-        if '/ws' == path:
+        if "/ws" == path:
             await self.agent_handler(websocket)
-        elif '/ws-deployment' == path:
+        elif "/ws-deployment" == path:
             await self.deployment_handler(websocket)
-        elif '/api/v1/deploy/log/' == path:
+        elif "/api/v1/deploy/log/" == path:
             await self.log_handler(websocket)
         else:
             return
-        
-    async def start_deployment(self, agent_name: str, path: str, deploy_id: str) -> None:
+
+    async def start_deployment(
+        self, agent_name: str, path: str, deploy_id: str
+    ) -> None:
         agent = Agent.get(agent_name)
         if not agent:
             return None
         websocket = self.agents[agent.name]
-        self.deployments[deploy_id] = 'InProgress'
-        message = json.dumps({
-            "agent":agent.id,
-            "command":{
-                "contents":{
-                    "id":deploy_id,
-                    "index":0,
-                    "rollbackScript": None,
-                    "storePath":path
+        self.deployments[deploy_id] = "InProgress"
+        message = json.dumps(
+            {
+                "agent": agent.id,
+                "command": {
+                    "contents": {
+                        "id": deploy_id,
+                        "index": 0,
+                        "rollbackScript": None,
+                        "storePath": path,
+                    },
+                    "tag": "Deployment",
                 },
-                "tag":"Deployment"
-            },
-            "id": "00000000-0000-0000-0000-000000000000",
-            "method":"Deployment"
-        })
+                "id": "00000000-0000-0000-0000-000000000000",
+                "method": "Deployment",
+            }
+        )
         await websocket.send(message)
 
     async def run(self):

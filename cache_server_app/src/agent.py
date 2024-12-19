@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.10
+#!/usr/bin/env python3.12
 """
 agent
 
@@ -8,10 +8,11 @@ Author: Marek Križan
 Date: 1.5.2024
 """
 
-from cache_server_app.src.workspace import Workspace
 from cache_server_app.src.database import CacheServerDatabase
+from cache_server_app.src.workspace import Workspace
 
-class Agent():
+
+class Agent:
     """
     Class to represent deployment agent.
 
@@ -36,7 +37,7 @@ class Agent():
         if not row:
             return None
         return Agent(row[0], row[1], row[2], Workspace.get(row[3]))
-    
+
     def save(self) -> None:
         self.database.insert_agent(self.id, self.name, self.token, self.workspace.name)
 

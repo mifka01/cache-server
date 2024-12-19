@@ -1,8 +1,8 @@
 { lib
-, python310Packages
+, python312Packages
 }:
 
-python310Packages.buildPythonApplication rec {
+python312Packages.buildPythonApplication rec {
   pname = "cache-server";
   version = "1.0";
   pyproject = true;
@@ -10,12 +10,13 @@ python310Packages.buildPythonApplication rec {
   src = ./.;
 
   nativeBuildInputs = [
-    python310Packages.setuptools
+    python312Packages.setuptools
   ];
 
   propagatedBuildInputs = [
-    python310Packages.pyjwt
-    python310Packages.websockets
-    python310Packages.ed25519
+    python312Packages.pyjwt
+    python312Packages.websockets
+    python312Packages.ed25519
+    python312Packages.boto3
   ];
 }

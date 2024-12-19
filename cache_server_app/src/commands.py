@@ -1,32 +1,39 @@
-#!/usr/bin/env python3.10
+#!/usr/bin/env python3.12
 """
 commands
 
 Module to handle command execution.
 
-Author: Marek Križan
+Author: Marek Križan, Radim Mifka
 Date: 1.5.2024
 """
 
-import os
-import subprocess
-import signal
-import sys
 import asyncio
-import jwt
-import cache_server_app.src.config as config
+import os
+import shutil
+import signal
+import subprocess
+import sys
 import threading
 import uuid
-import shutil
 
-from cache_server_app.src.api import CacheServerRequestHandler, BinaryCacheRequestHandler, WebSocketConnectionHandler, HTTPCacheServer, HTTPBinaryCache
-from cache_server_app.src.database import CacheServerDatabase
-from cache_server_app.src.binary_cache import BinaryCache
+import jwt
+
+import cache_server_app.src.config as config
 from cache_server_app.src.agent import Agent
+from cache_server_app.src.api import (BinaryCacheRequestHandler,
+                                      CacheServerRequestHandler,
+                                      HTTPBinaryCache, HTTPCacheServer,
+                                      WebSocketConnectionHandler)
+from cache_server_app.src.binary_cache import BinaryCache
+from cache_server_app.src.database import CacheServerDatabase
+from cache_server_app.src.storage.local import LocalStorage
+from cache_server_app.src.storage.s3 import S3Storage
 from cache_server_app.src.store_path import StorePath
 from cache_server_app.src.workspace import Workspace
 
-class CacheServerCommandHandler():
+
+class CacheServerCommandHandler:
     """
     Class to handle command execution.
 
@@ -70,7 +77,7 @@ class CacheServerCommandHandler():
         if self.get_pid(pid_file):
             print("Server is already running.")
             sys.exit(1)
-        
+
         subprocess.Popen(["cache-server", "hidden-start", "server"])
 
     def start_workspace(self, ws_handler) -> None:
@@ -84,14 +91,17 @@ class CacheServerCommandHandler():
         ws_thread = threading.Thread(target=self.start_workspace, args=(ws_handler,))
         ws_thread.start()
         server = HTTPCacheServer(
-            ("localhost", config.server_port), CacheServerRequestHandler, ws_handler)
+            (config.server_hostname, config.server_port),
+            CacheServerRequestHandler,
+            ws_handler,
+        )
         print("Server started http://localhost:%d" % config.server_port)
         CacheServerDatabase().create_database()
         server.serve_forever()
 
     # cache-server stop
     def stop_command(self):
-        pid_file = '/var/run/cache-server.pid'
+        pid_file = "/var/run/cache-server.pid"
         pid = self.get_pid(pid_file)
         if pid:
             try:
@@ -105,8 +115,15 @@ class CacheServerCommandHandler():
             print("ERROR: Server is not running.")
             sys.exit(1)
 
-    # cache-server cache create <name> <port>
-    def cache_create(self, name: str, port: int, retention: int | None) -> None:
+    # cache-server cache create <name> <port> <storage> <config>
+    def cache_create(
+        self,
+        name: str,
+        port: int,
+        storage: str,
+        retention: int | None,
+        storage_config: dict[str, str] | None,
+    ) -> None:
         if BinaryCache.get(name):
             print("ERROR: Binary cache %s already exists." % name)
             sys.exit(1)
@@ -117,22 +134,41 @@ class CacheServerCommandHandler():
 
         if not retention:
             retention = -1
-        
+
         cache_url = "http://{}.{}".format(name, config.server_hostname)
         cache_id = uuid.uuid1()
-        cache_token = jwt.encode({'name': name}, config.key, algorithm="HS256")
-        cache = BinaryCache(cache_id, name, cache_url, cache_token, 'public', port, retention)
-        try:
-            os.makedirs(cache.cache_dir)
-        except FileExistsError:
-            print("ERROR: Directory %s already exists." % cache.cache_dir)
-            sys.exit(1)
-        except PermissionError:
-            print("ERROR: Can't create directory %s. Permission denied." % cache.cache_dir)
-            sys.exit(1)
+        cache_token = jwt.encode({"name": name}, config.key, algorithm="HS256")
+        cache_dir = os.path.join(config.cache_dir, name)
+
+        storage = (
+            S3Storage(storage_config, cache_dir)
+            if storage == "s3"
+            else LocalStorage(storage_config, cache_dir)
+        )
+
+        cache = BinaryCache(
+            cache_id,
+            name,
+            cache_url,
+            cache_token,
+            "public",
+            port,
+            retention,
+            storage,
+        )
+        # try:
+        #     os.makedirs(cache.cache_dir)
+        # except FileExistsError:
+        #     print("ERROR: Directory %s already exists." % cache.cache_dir)
+        #     sys.exit(1)
+        # except PermissionError:
+        #     print(
+        #         "ERROR: Can't create directory %s. Permission denied." % cache.cache_dir
+        #     )
+        #     sys.exit(1)
         cache.generate_keys()
         cache.save()
-        
+
     # cache-server cache start <name>
     def cache_start(self, name: str) -> None:
         cache = BinaryCache.get(name)
@@ -140,11 +176,13 @@ class CacheServerCommandHandler():
             print("ERROR: Binary cache %s does not exist." % name)
             sys.exit(1)
 
-        if self.get_pid('/var/run/{}.pid'.format(cache.id)):
+        if self.get_pid("/var/run/{}.pid".format(cache.id)):
             print("ERROR: Binary cache %s is already running." % name)
             sys.exit(1)
-            
-        subprocess.Popen(["cache-server", "hidden-start", "cache", name, str(cache.port)])
+
+        subprocess.Popen(
+            ["cache-server", "hidden-start", "cache", name, str(cache.port)]
+        )
 
     def start_cache(self, name: str, port: int) -> None:
         cache = BinaryCache.get(name)
@@ -152,7 +190,7 @@ class CacheServerCommandHandler():
             print("ERROR: Binary cache %s does not exist." % name)
             sys.exit(1)
 
-        pid_file = '/var/run/{}.pid'.format(cache.id)
+        pid_file = "/var/run/{}.pid".format(cache.id)
         self.save_pid(pid_file)
 
         if cache.retention > 0:
@@ -160,7 +198,8 @@ class CacheServerCommandHandler():
             ws_thread.start()
 
         server = HTTPBinaryCache(
-            ("localhost", port), BinaryCacheRequestHandler, cache)
+            (config.server_hostname, port), BinaryCacheRequestHandler, cache
+        )
         print("Binary cache started http://localhost:%d" % port)
         server.serve_forever()
 
@@ -171,7 +210,7 @@ class CacheServerCommandHandler():
             print("ERROR: Binary cache %s does not exist." % name)
             sys.exit(1)
 
-        pid_file = '/var/run/{}.pid'.format(cache.id)
+        pid_file = "/var/run/{}.pid".format(cache.id)
         pid = self.get_pid(pid_file)
         if pid:
             try:
@@ -194,10 +233,13 @@ class CacheServerCommandHandler():
 
         for workspace in self.database.get_workspace_list():
             if name == workspace[3]:
-                print("ERROR: Binary cache %s is connected to workspace %s." % (name, workspace[1]))
+                print(
+                    "ERROR: Binary cache %s is connected to workspace %s."
+                    % (name, workspace[1])
+                )
                 sys.exit(1)
 
-        pid_file = '/var/run/{}.pid'.format(cache.id)
+        pid_file = "/var/run/{}.pid".format(cache.id)
         if self.get_pid(pid_file):
             print("ERROR: Binary cache %s is running." % name)
             sys.exit(1)
@@ -215,33 +257,40 @@ class CacheServerCommandHandler():
         if Agent.get(name):
             print("ERROR: Agent %s already exists." % (name))
             sys.exit(1)
-        
+
         workspace = Workspace.get(workspace_name)
         if not workspace:
             print("ERROR: Workspace %s does not exist.")
             sys.exit(1)
 
         agent_id = str(uuid.uuid1())
-        encoded_jwt = jwt.encode({'name': name}, config.key, algorithm="HS256")
+        encoded_jwt = jwt.encode({"name": name}, config.key, algorithm="HS256")
         Agent(agent_id, name, encoded_jwt, workspace).save()
-        
+
     # cache-server agent remove <name>
     def agent_remove(self, name: str) -> None:
         agent = Agent.get(name)
         if not agent:
             print("ERROR: Agent %s does not exist." % (name))
             sys.exit(1)
-        
+
         agent.delete()
 
     # cache-server cache update
-    def cache_update(self, name: str, new_name: str | None , access: str | None, retention: int | None, port: int | None) -> None:
+    def cache_update(
+        self,
+        name: str,
+        new_name: str | None,
+        access: str | None,
+        retention: int | None,
+        port: int | None,
+    ) -> None:
         cache = BinaryCache.get(name)
         if not cache:
             print("ERROR: Binary cache %s does not exist." % name)
             sys.exit(1)
 
-        if self.get_pid('/var/run/{}.pid'.format(cache.id)):
+        if self.get_pid("/var/run/{}.pid".format(cache.id)):
             print("ERROR: Binary cache %s is running." % name)
             sys.exit(1)
 
@@ -255,10 +304,15 @@ class CacheServerCommandHandler():
                 cache.update_paths(new_name)
                 cache.name = new_name
                 cache.url = "http://{}.{}".format(new_name, config.server_hostname)
-                cache.token = jwt.encode({'name': new_name}, config.key, algorithm="HS256")
+                cache.token = jwt.encode(
+                    {"name": new_name}, config.key, algorithm="HS256"
+                )
             else:
-                print("ERROR: Binary cache %s already exists. Name won't be changed." % name)
-        
+                print(
+                    "ERROR: Binary cache %s already exists. Name won't be changed."
+                    % name
+                )
+
         if retention:
             cache.retention = retention
 
@@ -266,7 +320,7 @@ class CacheServerCommandHandler():
             cache.port = port
 
         cache.update()
-            
+
     # cache-server cache list
     def cache_list(self, private: bool, public: bool) -> None:
         db_result = []
@@ -276,12 +330,12 @@ class CacheServerCommandHandler():
             db_result = self.database.get_public_cache_list()
         else:
             db_result = self.database.get_cache_list()
-        
+
         for row in db_result:
             print(row[1])
 
     # cache-server cache info <name>
-    def cache_info(self, name:str) -> None:
+    def cache_info(self, name: str) -> None:
         cache = BinaryCache.get(name)
         if not cache:
             print("ERROR: Binary cache %s does not exist." % name)
@@ -291,11 +345,17 @@ class CacheServerCommandHandler():
             retention = None
         else:
             retention = cache.retention
-            
-        output = "Id: {}\nName: {}\nUrl: {}\nToken: {}\nAccess: {}\nPort: {}\nRetention: {}".format(cache.id, cache.name,
-                                                                                                  cache.url, cache.token,
-                                                                                                  cache.access, cache.port,
-                                                                                                  retention)
+
+        output = "Id: {}\nName: {}\nUrl: {}\nToken: {}\nAccess: {}\nPort: {}\nRetention: {}\nStorage: {}".format(
+            cache.id,
+            cache.name,
+            cache.url,
+            cache.token,
+            cache.access,
+            cache.port,
+            retention,
+            cache.storage,
+        )
         print(output)
 
     # cache-server agent list <workspace_name>
@@ -347,7 +407,9 @@ class CacheServerCommandHandler():
             print("ERROR: Store path not found")
             sys.exit(1)
 
-        output = "Store hash: {}\nStore suffix: {}\nFile hash: {}".format(path.store_hash, path.store_suffix, path.file_hash)
+        output = "Store hash: {}\nStore suffix: {}\nFile hash: {}".format(
+            path.store_hash, path.store_suffix, path.file_hash
+        )
         print(output)
 
     # cache-server agent info <name>
@@ -357,7 +419,9 @@ class CacheServerCommandHandler():
             print("ERROR: Agent %s does not exist." % name)
             sys.exit(1)
 
-        output = "Id: {}\nName: {}\nToken: {}\nWorkspace: {}".format(agent.id, agent.name, agent.token, agent.workspace.name)
+        output = "Id: {}\nName: {}\nToken: {}\nWorkspace: {}".format(
+            agent.id, agent.name, agent.token, agent.workspace.name
+        )
         print(output)
 
     # cache-server workspace create <name> <cache_name>
@@ -371,7 +435,7 @@ class CacheServerCommandHandler():
             print("ERROR: Binary cache %s does not exist." % cache_name)
             sys.exit(1)
 
-        encoded_jwt = jwt.encode({'name': name}, config.key, algorithm="HS256")
+        encoded_jwt = jwt.encode({"name": name}, config.key, algorithm="HS256")
         workspace_id = str(uuid.uuid1())
         Workspace(workspace_id, name, encoded_jwt, cache).save()
 
@@ -387,7 +451,7 @@ class CacheServerCommandHandler():
     # cache-server workspace list
     def workspace_list(self) -> None:
         db_result = self.database.get_workspace_list()
-        
+
         for row in db_result:
             print(row[1])
 
@@ -398,7 +462,9 @@ class CacheServerCommandHandler():
             print("ERROR: Workspace %s does not exist." % name)
             sys.exit(1)
 
-        output = "Id: {}\nName: {}\nToken: {}\nBinary cache: {}".format(workspace.id, workspace.name, workspace.token, workspace.cache.name)
+        output = "Id: {}\nName: {}\nToken: {}\nBinary cache: {}".format(
+            workspace.id, workspace.name, workspace.token, workspace.cache.name
+        )
         print(output)
 
     # cache-server workspace cache <name> <cache-name>
