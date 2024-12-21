@@ -18,6 +18,12 @@ from cache_server_app.src.storage.base import Storage
 
 class S3Storage(Storage):
     def setup(self, config: Dict[str, str], path: str) -> None:
+        if not self.__valid_credentials(
+            config["s3_access_key"], config["s3_secret_key"]
+        ):
+            #!TODO Change this
+            raise IOError("Invalid S3 credentials")
+
         self.s3_client = boto3.client(
             "s3",
             aws_access_key_id=config["s3_access_key"],
@@ -111,3 +117,14 @@ class S3Storage(Storage):
             return None
         except ClientError as e:
             raise IOError(f"Error finding file {name}: {e}")
+
+    def __valid_credentials(self, access_key: str, secret_key: str) -> bool:
+        try:
+            boto3.client(
+                "sts",
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+            ).get_caller_identity()
+            return True
+        except ClientError as e:
+            return False

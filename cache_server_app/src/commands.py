@@ -27,8 +27,7 @@ from cache_server_app.src.api import (BinaryCacheRequestHandler,
                                       WebSocketConnectionHandler)
 from cache_server_app.src.binary_cache import BinaryCache
 from cache_server_app.src.database import CacheServerDatabase
-from cache_server_app.src.storage.local import LocalStorage
-from cache_server_app.src.storage.s3 import S3Storage
+from cache_server_app.src.storage.factory import StorageFactory
 from cache_server_app.src.store_path import StorePath
 from cache_server_app.src.workspace import Workspace
 
@@ -140,11 +139,7 @@ class CacheServerCommandHandler:
         cache_token = jwt.encode({"name": name}, config.key, algorithm="HS256")
         cache_dir = os.path.join(config.cache_dir, name)
 
-        storage = (
-            S3Storage(storage_config, cache_dir)
-            if storage == "s3"
-            else LocalStorage(storage_config, cache_dir)
-        )
+        storage = StorageFactory.create_storage(storage, storage_config, cache_dir)
 
         cache = BinaryCache(
             cache_id,

@@ -10,21 +10,26 @@ Date: 5.12.2024
 from abc import ABC, abstractmethod
 from typing import Dict
 
+from cache_server_app.src.storage.type import StorageType
+
 
 class Storage(ABC):
-    def __init__(self, config: Dict[str, str], root: str = "") -> None:
+    def __init__(
+        self, type: StorageType, config: Dict[str, str], root: str = ""
+    ) -> None:
         """Initialize the storage object.
 
         Parameters:
             root (str): The path to the root directory. Defaults to "".
         """
         self.root = root
+        self.type = type
         self.config = config
 
         self.setup(config, root)
 
     def __str__(self) -> str:
-        return self.get_type()
+        return self.type
 
     @abstractmethod
     def setup(self, config: Dict[str, str], path: str) -> None:
@@ -32,15 +37,6 @@ class Storage(ABC):
 
         Parameters:
             path (str): The path to the root directory.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_type(self) -> str:
-        """Return the type of the storage.
-
-        Returns:
-            str: The type of the storage.
         """
         raise NotImplementedError
 

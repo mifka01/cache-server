@@ -18,8 +18,7 @@ import ed25519
 import cache_server_app.src.config as config
 from cache_server_app.src.database import CacheServerDatabase
 from cache_server_app.src.storage.base import Storage
-from cache_server_app.src.storage.local import LocalStorage
-from cache_server_app.src.storage.s3 import S3Storage
+from cache_server_app.src.storage.factory import StorageFactory
 
 
 class BinaryCache:
@@ -74,11 +73,7 @@ class BinaryCache:
         cache_dir = os.path.join(config.cache_dir, name)
         storage_config = CacheServerDatabase().get_storage_config(id)
 
-        storage = (
-            S3Storage(storage_config, cache_dir)
-            if storage_type == "s3"
-            else LocalStorage(storage_config, cache_dir)
-        )
+        storage = StorageFactory.create_storage(storage_type, storage_config, cache_dir)
 
         return BinaryCache(
             id, name, row[2], row[3], row[4], int(row[5]), int(row[6]), storage
@@ -97,11 +92,7 @@ class BinaryCache:
         cache_dir = os.path.join(config.cache_dir, name)
         storage_config = CacheServerDatabase().get_storage_config(id)
 
-        storage = (
-            S3Storage(storage_config, cache_dir)
-            if storage_type == "s3"
-            else LocalStorage(storage_config, cache_dir)
-        )
+        storage = StorageFactory.create_storage(storage_type, storage_config, cache_dir)
 
         return BinaryCache(
             id, name, row[2], row[3], row[4], int(row[5]), int(row[6]), storage
