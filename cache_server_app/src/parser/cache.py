@@ -1,5 +1,6 @@
 from argparse import ArgumentParser, _SubParsersAction
 
+import cache_server_app.src.config as config
 from cache_server_app.src.storage.type import StorageType
 
 
@@ -29,21 +30,45 @@ def get_cache_create_parser(
     )
 
     cache_create_parser.add_argument("name", type=str, help="Binary cache name")
-    cache_create_parser.add_argument("port", type=int, help="Binary cache port")
+    cache_create_parser.add_argument(
+        "-p", "--port", type=int, help="Binary cache port", default=config.default_port
+    )
     cache_create_parser.add_argument(
         "-r",
         "--retention",
+        type=int,
         help="Number of weeks after which paths will be removed",
-        dest="retention",
+        default=config.default_retention,
     )
-    cache_create_subparsers = cache_create_parser.add_subparsers(
-        dest="storage",
-        help="Binary cache storage",
-        required=True,
+    cache_create_parser.add_argument(
+        "-s",
+        "--storage",
+        choices=["local", "s3"],
+        help="Binary cache storage type",
+        default=config.default_storage,
     )
 
-    get_cache_local_storage_parser(cache_create_subparsers)
-    get_cache_s3_storage_parser(cache_create_subparsers)
+    # S3-specific arguments
+    cache_create_parser.add_argument(
+        "--bucket",
+        help="S3 bucket name",
+        default=config.s3_bucket,
+    )
+    cache_create_parser.add_argument(
+        "--region",
+        help="S3 region",
+        default=config.s3_region,
+    )
+    cache_create_parser.add_argument(
+        "--access-key",
+        help="S3 access key",
+        default=config.s3_access_key,
+    )
+    cache_create_parser.add_argument(
+        "--secret-key",
+        help="S3 secret key",
+        default=config.s3_secret_key,
+    )
 
     return cache_create_parser
 
