@@ -77,7 +77,9 @@ class CacheServerCommandHandler:
             print("Server is already running.")
             sys.exit(1)
 
-        subprocess.Popen(["cache-server", "hidden-start", "server"])
+        # subprocess.Popen(["cache-server", "hidden-start", "server"])
+        subprocess.Popen([sys.executable, "-m", "cache_server_app.main", "hidden-start", "server"])
+
 
     def start_workspace(self, ws_handler) -> None:
         asyncio.run(ws_handler.run())
