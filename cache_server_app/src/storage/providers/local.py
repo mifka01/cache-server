@@ -10,10 +10,22 @@ Date: 5.12.2024
 import os
 from typing import Dict
 
-from cache_server_app.src.storage.base import Storage
+from cache_server_app.src.storage.base import Storage, StorageConfig
+from cache_server_app.src.storage.registry import StorageRegistry
+from cache_server_app.src.storage.type import StorageType
 
 
+@StorageRegistry.register(StorageType.LOCAL)
 class LocalStorage(Storage):
+    @classmethod
+    def get_config(cls) -> StorageConfig:
+        """Get the configuration requirements for local storage."""
+        return StorageConfig(
+            required=[],
+            prefix="",
+            config_key="local"
+        )
+
     def setup(self, config: Dict[str, str], path: str) -> None:
         if os.path.exists(path):
             return
@@ -27,7 +39,7 @@ class LocalStorage(Storage):
             exit(1)
 
     def get_type(self) -> str:
-        return "local"
+        return StorageType.LOCAL
 
     def new_file(self, path: str, data: bytes = b"") -> None:
         path = os.path.join(self.root, path)
