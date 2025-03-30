@@ -13,10 +13,22 @@ from typing import Dict, Union
 import boto3
 from botocore.exceptions import ClientError
 
-from cache_server_app.src.storage.base import Storage
+from cache_server_app.src.storage.base import Storage, StorageConfig
+from cache_server_app.src.storage.registry import StorageRegistry
+from cache_server_app.src.storage.type import StorageType
 
 
+@StorageRegistry.register(StorageType.S3)
 class S3Storage(Storage):
+    @classmethod
+    def get_config(cls) -> StorageConfig:
+        """Get the configuration requirements for S3 storage."""
+        return StorageConfig(
+            required=["bucket", "region", "access-key", "secret-key"],
+            prefix="s3_",
+            config_key="s3"
+        )
+
     def setup(self, config: Dict[str, str], path: str) -> None:
         if not self.__valid_credentials(
             config["s3_access_key"], config["s3_secret_key"]
@@ -34,7 +46,7 @@ class S3Storage(Storage):
         self.root = path.strip("/") + "/"
 
     def get_type(self) -> str:
-        return "s3"
+        return StorageType.S3
 
     def new_file(self, path: str, data: bytes = b"") -> None:
         full_path = os.path.join(self.root, path).lstrip("/")

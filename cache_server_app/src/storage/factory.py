@@ -11,7 +11,7 @@ class StorageFactory:
             storage_enum = StorageType(storage_type.lower())
 
             #!TODO Check this
-            module_name = f"cache_server_app.src.storage.{storage_enum.value}"
+            module_name = f"cache_server_app.src.storage.providers.{storage_enum.value}"
 
             class_name = f"{storage_enum.value.capitalize()}Storage"
             module = importlib.import_module(module_name)

@@ -8,18 +8,29 @@ Date: 5.12.2024
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict
+from dataclasses import dataclass
+from typing import Dict, List
 
 from cache_server_app.src.storage.type import StorageType
 
 
+@dataclass
+class StorageConfig:
+    """Configuration for a storage type."""
+    required: List[str]
+    prefix: str
+    config_key: str
+
+
 class Storage(ABC):
     def __init__(
-        self, type: StorageType, config: Dict[str, str], root: str = ""
+        self, type: str, config: Dict[str, str], root: str = ""
     ) -> None:
         """Initialize the storage object.
 
         Parameters:
+            type (str): The type of storage.
+            config (Dict[str, str]): The storage configuration.
             root (str): The path to the root directory. Defaults to "".
         """
         self.root = root
@@ -30,6 +41,11 @@ class Storage(ABC):
 
     def __str__(self) -> str:
         return self.type
+
+    @classmethod
+    def get_config(cls) -> StorageConfig:
+        """Get the configuration requirements for this storage type."""
+        raise NotImplementedError
 
     @abstractmethod
     def setup(self, config: Dict[str, str], path: str) -> None:
