@@ -52,22 +52,18 @@ def get_cache_create_parser(
     cache_create_parser.add_argument(
         "--bucket",
         help="S3 bucket name",
-        default=config.s3_bucket,
     )
     cache_create_parser.add_argument(
         "--region",
         help="S3 region",
-        default=config.s3_region,
     )
     cache_create_parser.add_argument(
         "--access-key",
         help="S3 access key",
-        default=config.s3_access_key,
     )
     cache_create_parser.add_argument(
         "--secret-key",
         help="S3 secret key",
-        default=config.s3_secret_key,
     )
 
     return cache_create_parser

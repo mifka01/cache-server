@@ -1,45 +1,46 @@
 #!/usr/bin/env python3.12
 """
 config
-
 Module to parse configuration file.
-
-Author: Marek Križan, Radim Mifka
+Author: Radim Mifka
 Date: 1.5.2024
+Modified: 30.3.2025
 """
-
-import configparser
 import os
 import sys
+import yaml
 
-config_file = os.path.join(os.path.expanduser("~"), ".cache-server.conf")
-
+config_file = os.path.join(os.path.expanduser("~"), ".cache-server.yaml")
 if not os.path.exists(config_file):
     print("ERROR: Config file %s not found." % config_file)
     sys.exit(1)
 
 try:
-    config = configparser.ConfigParser()
-    config.read(config_file)
+    with open(config_file, 'r') as file:
+       config = yaml.safe_load(file)
 
-    # Server settings
-    cache_dir = config.get("cache-server", "cache-dir")
-    database = config.get("cache-server", "database")
-    server_hostname = config.get("cache-server", "hostname")
-    server_port = int(config.get("cache-server", "server-port"))
-    deploy_port = int(config.get("cache-server", "deploy-port"))
-    key = config.get("cache-server", "key")
+    server_config = config.get("server", {})
+    cache_dir = server_config.get("cache-dir", "/var/cache/cache-server")
+    database = server_config.get("database", "/var/lib/cache-server/db.sqlite")
+    server_hostname = server_config.get("hostname", "localhost")
+    server_port = int(server_config.get("server-port", 5000))
+    deploy_port = int(server_config.get("deploy-port", 5001))
+    key = server_config.get("key", "")
+    auto_start_server = server_config.get("auto-start", False)
 
-    # Default cache settings
-    default_retention = int(config.get("cache-server", "default-retention", fallback="4"))
-    default_port = int(config.get("cache-server", "default-port", fallback="8080"))
-    default_storage = config.get("cache-server", "default-storage", fallback="local")
+    default_retention = int(server_config.get("default-retention", 4))
+    default_port = int(server_config.get("default-port", 8080))
+    default_storage = server_config.get("default-storage", "local")
 
-    # S3 settings
-    s3_bucket = config.get("cache-server", "s3-bucket", fallback="")
-    s3_region = config.get("cache-server", "s3-region", fallback="")
-    s3_access_key = config.get("cache-server", "s3-access-key", fallback="")
-    s3_secret_key = config.get("cache-server", "s3-secret-key", fallback="")
+    caches = config.get("caches", [])
+
+    for cache in caches:
+        if "storages" not in cache:
+            cache["storages"] = []
+
+    workspaces = config.get("workspaces", [])
+
+    agents = config.get("agents", [])
 
 except Exception as e:
     print(f"ERROR: Failed to parse config: {e}")
