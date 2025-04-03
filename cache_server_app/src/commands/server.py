@@ -16,7 +16,7 @@ import sys
 import threading
 from typing import Any
 
-import cache_server_app.src.config as config
+import cache_server_app.src.config.base as config
 from cache_server_app.src.api import CacheServerRequestHandler, HTTPCacheServer, WebSocketConnectionHandler
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.database import CacheServerDatabase
@@ -49,7 +49,7 @@ class ServerCommands(BaseCommand):
             ws_handler,
         )
         print(f"Server started http://localhost:{config.server_port}")
-        CacheServerDatabase().create_database()
+        # CacheServerDatabase().create_database()
         server.serve_forever()
 
     def stop(self) -> None:

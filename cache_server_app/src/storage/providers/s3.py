@@ -21,7 +21,7 @@ from cache_server_app.src.storage.type import StorageType
 @StorageRegistry.register(StorageType.S3)
 class S3Storage(Storage):
     @classmethod
-    def get_config(cls) -> StorageConfig:
+    def get_config_requirements(cls) -> StorageConfig:
         """Get the configuration requirements for S3 storage."""
         return StorageConfig(
             required=["bucket", "region", "access-key", "secret-key"],
@@ -31,15 +31,15 @@ class S3Storage(Storage):
 
     def setup(self, config: Dict[str, str], path: str) -> None:
         if not self.__valid_credentials(
-            config["s3_access_key"], config["s3_secret_key"]
+            config["s3_access-key"], config["s3_secret-key"]
         ):
             #!TODO Change this
             raise IOError("Invalid S3 credentials")
 
         self.s3_client = boto3.client(
             "s3",
-            aws_access_key_id=config["s3_access_key"],
-            aws_secret_access_key=config["s3_secret_key"],
+            aws_access_key_id=config["s3_access-key"],
+            aws_secret_access_key=config["s3_secret-key"],
         )
 
         self.bucket = config["s3_bucket"]

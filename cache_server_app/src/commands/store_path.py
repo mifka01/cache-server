@@ -22,7 +22,7 @@ class StorePathCommands(BaseCommand):
 
     def list(self, cache_name: str) -> None:
         """List all store paths in a cache."""
-        cache = BinaryCache.get(cache_name)
+        cache = BinaryCache.get(name=cache_name)
         if not cache:
             print(f"ERROR: Binary cache {cache_name} does not exist.")
             sys.exit(1)
@@ -32,7 +32,7 @@ class StorePathCommands(BaseCommand):
 
     def delete(self, cache_name: str, store_hash: str) -> None:
         """Delete a store path."""
-        cache = BinaryCache.get(cache_name)
+        cache = BinaryCache.get(name=cache_name)
         if not cache:
             print(f"ERROR: Binary cache {cache_name} does not exist.")
             sys.exit(1)
@@ -49,7 +49,7 @@ class StorePathCommands(BaseCommand):
 
     def info(self, store_hash: str, cache_name: str) -> None:
         """Get information about a store path."""
-        cache = BinaryCache.get(cache_name)
+        cache = BinaryCache.get(name=cache_name)
         if not cache:
             print(f"ERROR: Binary cache {cache_name} does not exist.")
             sys.exit(1)

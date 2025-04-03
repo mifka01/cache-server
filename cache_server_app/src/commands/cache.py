@@ -12,27 +12,29 @@ import os
 import shutil
 import sys
 import uuid
-from typing import Any
+from typing import Any, Dict, List
+import signal
 
 import jwt
 
-import cache_server_app.src.config as config
+import cache_server_app.src.config.base as config
 from cache_server_app.src.api import BinaryCacheRequestHandler, HTTPBinaryCache
 from cache_server_app.src.binary_cache import BinaryCache
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.storage.factory import StorageFactory
+from cache_server_app.src.storage.manager import StorageManager
 
 
 class CacheCommands(BaseCommand):
     """Handles all cache-related commands."""
 
-    def create(self, name: str, port: int, storage: str, retention: int | None, storage_config: dict[str, str] | None) -> None:
+    def create(self, name: str, port: int, retention: int | None, storages: List[Dict[str, str | Dict[str, str]]]) -> None:
         """Create a new binary cache."""
-        if BinaryCache.get(name):
+        if BinaryCache.exist(name=name):
             print(f"ERROR: Binary cache {name} already exists.")
             sys.exit(1)
 
-        if BinaryCache.get_by_port(port):
+        if BinaryCache.exist(port=port):
             print(f"ERROR: There already is binary cache with port {port} specified.")
             sys.exit(1)
 
@@ -44,7 +46,16 @@ class CacheCommands(BaseCommand):
         cache_token = jwt.encode({"name": name}, config.key, algorithm="HS256")
         cache_dir = os.path.join(config.cache_dir, name)
 
-        storage = StorageFactory.create_storage(storage, storage_config, cache_dir)
+        storage_instances = []
+
+        for storage in storages:
+            storage_id = str(uuid.uuid1())
+            storage_name = str(storage['name'])
+            storage_type = str(storage['type'])
+            storage_config = storage['config']
+            storage_instances.append(StorageFactory.create_storage(storage_id, storage_name, storage_type, storage_config, cache_dir))
+
+        manager = StorageManager(cache_id, storage_instances)
 
         cache = BinaryCache(
             cache_id,
@@ -54,14 +65,14 @@ class CacheCommands(BaseCommand):
             "public",
             port,
             retention,
-            storage,
+            manager
         )
         cache.generate_keys()
         cache.save()
 
     def start(self, name: str) -> None:
         """Start a binary cache."""
-        cache = BinaryCache.get(name)
+        cache = BinaryCache.get(name=name)
         if not cache:
             print(f"ERROR: Binary cache {name} does not exist.")
             sys.exit(1)
@@ -80,7 +91,7 @@ class CacheCommands(BaseCommand):
 
     def stop(self, name: str) -> None:
         """Stop a binary cache."""
-        cache = BinaryCache.get(name)
+        cache = BinaryCache.get(name=name)
         if not cache:
             print(f"ERROR: Binary cache {name} does not exist.")
             sys.exit(1)
@@ -101,7 +112,7 @@ class CacheCommands(BaseCommand):
 
     def delete(self, name: str) -> None:
         """Delete a binary cache."""
-        cache = BinaryCache.get(name)
+        cache = BinaryCache.get(name=name)
         if not cache:
             print(f"ERROR: Binary cache {name} does not exist.")
             sys.exit(1)
@@ -128,7 +139,7 @@ class CacheCommands(BaseCommand):
 
     def update(self, name: str, new_name: str | None, access: str | None, retention: int | None, port: int | None) -> None:
         """Update a binary cache."""
-        cache = BinaryCache.get(name)
+        cache = BinaryCache.get(name=name)
         if not cache:
             print(f"ERROR: Binary cache {name} does not exist.")
             sys.exit(1)
@@ -178,7 +189,7 @@ class CacheCommands(BaseCommand):
 
     def info(self, name: str) -> None:
         """Get information about a binary cache."""
-        cache = BinaryCache.get(name)
+        cache = BinaryCache.get(name=name)
         if not cache:
             print(f"ERROR: Binary cache {name} does not exist.")
             sys.exit(1)
@@ -202,8 +213,8 @@ class CacheCommands(BaseCommand):
             "list": self.list,
             "info": self.info,
         }
-        
+
         if command not in commands:
             raise ValueError(f"Unknown cache command: {command}")
-            
-        commands[command](*args, **kwargs) 
+
+        commands[command](*args, **kwargs)

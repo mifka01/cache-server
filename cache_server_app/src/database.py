@@ -10,9 +10,9 @@ Date: 1.5.2024
 
 import os
 import sqlite3
-from typing import Dict
+from typing import Dict, Any, List
 
-import cache_server_app.src.config as config
+import cache_server_app.src.config.base as config
 
 
 class CacheServerDatabase:
@@ -38,26 +38,33 @@ class CacheServerDatabase:
         if os.stat(self.database_file).st_size == 0:
 
             binary_cache_table = """ CREATE TABLE binary_cache (
-                                    id VARCHAR UNIQUE,
-                                    name VARCHAR UNIQUE,
-                                    url VARCHAR,
-                                    token VARCHAR,
-                                    access VARCHAR,
-                                    port VARCHAR,
-                                    retention INT,
-                                    storage VARCHAR
+                                    id VARCHAR UNIQUE PRIMARY KEY NOT NULL,
+                                    name VARCHAR UNIQUE NOT NULL,
+                                    url VARCHAR UNIQUE NOT NULL,
+                                    token VARCHAR NOT NULL,
+                                    access VARCHAR NOT NULL,
+                                    port VARCHAR UNIQUE NOT NULL,
+                                    retention INT NOT NULL
                                 ); """
 
-            cache_storage_config = """ CREATE TABLE cache_storage_config (
-                                    id SERIAL PRIMARY KEY,
-                                    cache_id INT REFERENCES caches(id) ON DELETE CASCADE,
-                                    config_key VARCHAR(255) NOT NULL,
+            storage_table = """ CREATE TABLE storage (
+                                    id VARCHAR UNIQUE PRIMARY KEY,
+                                    name VARCHAR NOT NULL,
+                                    type VARCHAR NOT NULL,
+                                    cache_id VARCHAR,
+                                    FOREIGN KEY(cache_id) REFERENCES binary_cache(id)
+                                ); """
+
+
+            storage_config_table = """ CREATE TABLE storage_config (
+                                    config_key VARCHAR NOT NULL,
                                     config_value TEXT,
-                                    UNIQUE (cache_id, config_key)
-                                    );"""
+                                    storage_id VARCHAR,
+                                    FOREIGN KEY(storage_id) REFERENCES storage(id)
+                                    ); """
 
             store_path_table = """ CREATE TABLE store_path (
-                                    id VARCHAR UNIQUE,
+                                    id VARCHAR UNIQUE PRIMARY KEY,
                                     store_hash VARCHAR,
                                     store_suffix VARCHAR,
                                     file_hash VARCHAR,
@@ -66,31 +73,32 @@ class CacheServerDatabase:
                                     nar_size INT,
                                     deriver VARCHAR,
                                     refs VARCHAR,
-                                    cache_name VARCHAR,
-                                    FOREIGN KEY(cache_name) REFERENCES binary_cache(name)
+                                    storage_id VARCHAR,
+                                    FOREIGN KEY(storage_id) REFERENCES storage(id)
                                 ); """
 
             workspace_table = """ CREATE TABLE workspace (
-                                    id VARCHAR UNIQUE,
+                                    id VARCHAR UNIQUE PRIMARY KEY,
                                     name VARCHAR,
                                     token VARCHAR,
-                                    cache_name VARCHAR,
-                                    FOREIGN KEY(cache_name) REFERENCES binary_cache(name)
+                                    cache_id VARCHAR,
+                                    FOREIGN KEY(cache_id) REFERENCES binary_cache(id)
                                 ); """
 
             agent_table = """ CREATE TABLE agent (
-                                    id VARCHAR UNIQUE,
+                                    id VARCHAR UNIQUE PRIMARY KEY,
                                     name VARCHAR,
                                     token VARCHAR,
-                                    workspace_name VARCHAR,
-                                    FOREIGN KEY(workspace_name) REFERENCES workspace(name)
+                                    workspace_id VARCHAR,
+                                    FOREIGN KEY(workspace_id) REFERENCES workspace(id)
                                 ); """
 
             # create tables
             with sqlite3.connect(self.database_file) as db_connection:
                 db_cursor = db_connection.cursor()
                 db_cursor.execute(binary_cache_table)
-                db_cursor.execute(cache_storage_config)
+                db_cursor.execute(storage_table)
+                db_cursor.execute(storage_config_table)
                 db_cursor.execute(store_path_table)
                 db_cursor.execute(workspace_table)
                 db_cursor.execute(agent_table)
@@ -107,7 +115,7 @@ class CacheServerDatabase:
             print("ERROR: ", e)
 
     # execute SQL selects
-    def execute_select(self, statement: str) -> list:
+    def execute_select(self, statement: str) -> list[Any]:
         try:
             with sqlite3.connect(self.database_file) as db_connection:
                 db_cursor = db_connection.cursor()
@@ -116,6 +124,7 @@ class CacheServerDatabase:
             return result
         except sqlite3.Error as e:
             print("ERROR: ", e)
+            return []
 
     def insert_binary_cache(
         self,
@@ -126,11 +135,10 @@ class CacheServerDatabase:
         access: str,
         port: int,
         retention: int,
-        storage: str,
     ) -> None:
         statement = """
-            INSERT INTO binary_cache (id, name, url, token, access, port, retention, storage)
-            VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')
+            INSERT INTO binary_cache (id, name, url, token, access, port, retention)
+            VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}')
             ; """.format(
             id,
             name,
@@ -139,44 +147,63 @@ class CacheServerDatabase:
             access,
             port,
             retention,
-            storage,
         )
         self.execute_statement(statement)
 
-    def insert_storage_config(self, cache_id: int, config_key: str, config_value: str):
+    def insert_cache_storage(self, id: str, name:str, type: str, cache_id: str) -> None:
         statement = """
-            INSERT INTO cache_storage_config (cache_id, config_key, config_value)
+            INSERT INTO storage (id, name, type, cache_id)
+            VALUES ('{}', '{}', '{}', '{}')
+            ; """.format(
+            id, name, type, cache_id
+        )
+        self.execute_statement(statement)
+
+    def insert_storage_config(self, id: str, config_key: str, config_value: str):
+        statement = """
+            INSERT INTO storage_config(storage_id, config_key, config_value)
             VALUES ('{}', '{}', '{}')
             ; """.format(
-            cache_id, config_key, config_value
+            id, config_key, config_value
         )
         self.execute_statement(statement)
 
-    def delete_binary_cache(self, name: str) -> None:
+    def delete_storage_config(self, id: str) -> None:
+        statement = """
+            DELETE FROM storage_config
+            WHERE storage_id='{}'
+            ; """.format(
+            id
+        )
+        self.execute_statement(statement)
+
+    def delete_binary_cache(self, id: str) -> None:
         statement = """
             DELETE FROM binary_cache
-            WHERE name='{}'
+            WHERE id='{}'
             ; """.format(
-            name
+            id
         )
         self.execute_statement(statement)
 
-    def delete_cache_storage_config_records(self, cache_id: int) -> None:
+    def update_storage(self, id: str, type: str) -> None:
         statement = """
-            DELETE FROM cache_storage_config
-            WHERE cache_id='{}'
+            UPDATE storage
+            SET type='{}'
+            WHERE id='{}'
             ; """.format(
-            cache_id
+            type, id
         )
         self.execute_statement(statement)
 
-    def delete_all_cache_paths(self, name: str) -> None:
+    def delete_storage(self, id: str) -> None:
         statement = """
-            DELETE FROM store_path
-            WHERE cache_name='{}'
-        ; """.format(
-            name
+            DELETE FROM storage
+            WHERE id='{}'
+            ; """.format(
+            id
         )
+
         self.execute_statement(statement)
 
     def update_binary_cache(
@@ -187,25 +214,42 @@ class CacheServerDatabase:
         token: str,
         access: str,
         port: int,
-        retention: int,
-        storage: str,
+        retention: int
     ) -> None:
         statement = """
             UPDATE binary_cache
-            SET name='{}', url='{}', token='{}', access='{}', port='{}', retention='{}', storage='{}'
+            SET name='{}', url='{}', token='{}', access='{}', port='{}', retention='{}',
             WHERE id='{}'
             ; """.format(
-            name, url, token, access, port, retention, storage, id
+            name, url, token, access, port, retention, id
         )
         self.execute_statement(statement)
 
-    def get_binary_cache_row(self, name: str) -> list | None:
-        statement = """
-            SELECT * FROM binary_cache
-            WHERE name='{}'
-            ; """.format(
-            name
-        )
+    def get_binary_cache_row(self, id: str | None = None, name: str | None = None, port: int | None = None) -> list[str | int] | None:
+        if id:
+            statement = """
+                SELECT * FROM binary_cache
+                WHERE id='{}'
+                ; """.format(
+                id
+            )
+        elif name:
+            statement = """
+                SELECT * FROM binary_cache
+                WHERE name='{}'
+                ; """.format(
+                name
+            )
+        elif port:
+            statement = """
+                SELECT * FROM binary_cache
+                WHERE port='{}'
+                ; """.format(
+                port
+            )
+        else:
+            return None
+
         db_result = self.execute_select(statement)
 
         if not db_result:
@@ -213,39 +257,28 @@ class CacheServerDatabase:
 
         return db_result[0]
 
-    def get_storage_config(self, id: int) -> Dict[str, str]:
-
+    def get_cache_storages(self, id: str) -> list[str]:
         statement = """
-            SELECT * FROM cache_storage_config
+            SELECT * FROM storage
             WHERE cache_id='{}'
             ; """.format(
             id
+        )
+        return self.execute_select(statement)
+
+    def get_storage_config(self, storage_id: str) -> Dict[str, str]:
+        statement = """
+            SELECT * FROM storage_config
+            WHERE storage_id='{}'
+            ; """.format(
+            storage_id
         )
         db_result = self.execute_select(statement)
 
         if not db_result:
             return {}
 
-        storage_config = {}
-
-        for row in db_result:
-            storage_config[row[2]] = row[3]
-
-        return storage_config
-
-    def get_binary_cache_row_by_port(self, port: int) -> list | None:
-        statement = """
-            SELECT * FROM binary_cache
-            WHERE port='{}'
-            ; """.format(
-            port
-        )
-        db_result = self.execute_select(statement)
-
-        if not db_result:
-            return None
-
-        return db_result[0]
+        return {row[0]: row[1] for row in db_result}
 
     def get_private_cache_list(self) -> list[str]:
         statement = """
@@ -267,12 +300,21 @@ class CacheServerDatabase:
             ; """
         return self.execute_select(statement)
 
-    def get_cache_store_paths(self, cache_name: str) -> list:
+    def get_storages_store_paths(self, storage_ids: List[str]) -> list[str]:
         statement = """
             SELECT * FROM store_path
-            WHERE cache_name='{}'
+            WHERE storage_id IN ({})
             ; """.format(
-            cache_name
+            storage_ids
+        )
+        return self.execute_select(statement)
+
+    def get_storage_store_paths(self, storage_id: str) -> list[str]:
+        statement = """
+            SELECT * FROM store_path
+            WHERE storage_id='{}'
+            ; """.format(
+            storage_id
         )
         return self.execute_select(statement)
 
@@ -320,23 +362,23 @@ class CacheServerDatabase:
         return self.execute_select(statement)
 
     def get_store_path_row(
-        self, cache_name: str, store_hash: str = "", file_hash: str = ""
+        self, storage_ids: List[str], store_hash: str = "", file_hash: str = ""
     ) -> list | None:
         if store_hash:
             statement = """
                 SELECT * FROM store_path
                 WHERE store_hash='{}'
-                AND cache_name='{}'
+                AND storage_id IN ({})
                 ; """.format(
-                store_hash, cache_name
+                store_hash, storage_ids
             )
         else:
             statement = """
                 SELECT * FROM store_path
                 WHERE file_hash='{}'
-                AND cache_name='{}'
+                AND storage_id IN ({})
                 ; """.format(
-                file_hash, cache_name
+                file_hash, storage_ids
             )
 
         db_result = self.execute_select(statement)
@@ -357,11 +399,11 @@ class CacheServerDatabase:
         nar_size: int,
         deriver: str,
         references: list[str],
-        cache_name: str,
+        storage_id: str,
     ) -> None:
         statement = """
             INSERT INTO store_path (id, store_hash, store_suffix, file_hash, file_size, nar_hash,
-            nar_size, deriver, refs, cache_name)
+            nar_size, deriver, refs, storage_id)
             VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')
             ; """.format(
             id,
@@ -372,19 +414,18 @@ class CacheServerDatabase:
             nar_hash,
             nar_size,
             deriver,
-            references,
-            cache_name,
+            " ".join(references),
+            storage_id,
         )
-        print(statement)
         self.execute_statement(statement)
 
-    def delete_store_path(self, store_hash: str, cache_name: str) -> None:
+    def delete_store_path(self, store_hash: str, storage_id: str) -> None:
         statement = """
             DELETE FROM store_path
             WHERE store_hash='{}'
-            AND cache_name='{}'
+            AND storage_id='{}'
             ; """.format(
-            store_hash, cache_name
+            store_hash, storage_id
         )
         self.execute_statement(statement)
 
@@ -408,13 +449,31 @@ class CacheServerDatabase:
         )
         self.execute_statement(statement)
 
-    def get_workspace_row(self, name: str) -> list | None:
-        statement = """
-            SELECT * FROM workspace
-            WHERE name='{}'
-            ; """.format(
-            name
-        )
+    def get_workspace_row(self, id: str | None = None, name: str | None = None, token : str | None = None):
+        if id:
+            statement = """
+                SELECT * FROM workspace
+                WHERE id='{}'
+                ; """.format(
+                id
+            )
+        if name:
+            statement = """
+                SELECT * FROM workspace
+                WHERE name='{}'
+                ; """.format(
+                name
+            )
+        elif token:
+            statement = """
+                SELECT * FROM workspace
+                WHERE token='{}'
+                ; """.format(
+                token
+            )
+        else:
+            return None
+
         db_result = self.execute_select(statement)
 
         if not db_result:

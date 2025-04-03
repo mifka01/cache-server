@@ -35,6 +35,10 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
     Class to handle cache-server HTTP requests.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.server: HTTPCacheServer # type: ignore
+
     def do_GET(self) -> None:
         if m := re.match(r"^/api/v1/cache/([a-z0-9]*)(\?)?", self.path):
             cache = BinaryCache.get(m.group(1))
@@ -163,7 +167,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 filename = cache.storage.find(name)
 
                 StorePath(
-                    id=uuid.uuid4(),
+                    id=str(uuid.uuid4()),
                     store_hash=narinfo_create["cStoreHash"],
                     store_suffix=narinfo_create["cStoreSuffix"],
                     file_hash=narinfo_create["cFileHash"],
@@ -172,7 +176,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                     nar_size=narinfo_create["cNarSize"],
                     deriver=narinfo_create["cDeriver"],
                     references=narinfo_create["cReferences"],
-                    cache=cache,
+                    storage=cache.storage
                 ).save()
 
                 new_filename = "{}.nar{}".format(
@@ -282,14 +286,16 @@ class HTTPBinaryCache(HTTPServer):
         self.cache = cache
         super().__init__(server_address, request_handler)
 
-
 class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.server: HTTPBinaryCache # type: ignore
+
     """
     Class to handle binary cache HTTP requests.
     """
-
     def do_GET(self) -> None:
-
         if self.server.cache.access == "private":
             if (
                 base64.b64decode(self.headers["Authorization"].split()[1]).decode(
@@ -429,8 +435,8 @@ class WebSocketConnectionHandler:
 
     def __init__(self, port: int):
         self.port = port
-        self.agents = {}
-        self.deployments = {}
+        self.agents: dict[str, websockets.WebSocketServerProtocol] = {}
+        self.deployments: dict[str, str] = {}
 
     async def agent_handler(self, websocket):
         agent = Agent.get(websocket.request_headers["name"])

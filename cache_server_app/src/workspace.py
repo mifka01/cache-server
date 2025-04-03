@@ -8,6 +8,7 @@ Author: Marek Križan
 Date: 1.5.2024
 """
 
+from typing import Optional
 from cache_server_app.src.binary_cache import BinaryCache
 from cache_server_app.src.database import CacheServerDatabase
 
@@ -32,17 +33,16 @@ class Workspace:
         self.cache = cache
 
     @staticmethod
-    def get(name: str):
-        row = CacheServerDatabase().get_workspace_row(name)
+    def get(name: str) -> Optional['Workspace']:
+        row = CacheServerDatabase().get_workspace_row(name=name)
         if not row:
             return None
-        return Workspace(row[0], row[1], row[2], BinaryCache.get(row[3]))
 
-    def get_by_token(token: str):
-        row = CacheServerDatabase().get_workspace_row_by_token(token)
-        if not row:
+        cache = BinaryCache.get(row[3])
+        if not cache:
             return None
-        return Workspace(row[0], row[1], row[2], BinaryCache.get(row[3]))
+
+        return Workspace(row[0], row[1], row[2], cache)
 
     def save(self) -> None:
         self.database.insert_workspace(self.id, self.name, self.token, self.cache.name)

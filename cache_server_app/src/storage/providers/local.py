@@ -18,7 +18,7 @@ from cache_server_app.src.storage.type import StorageType
 @StorageRegistry.register(StorageType.LOCAL)
 class LocalStorage(Storage):
     @classmethod
-    def get_config(cls) -> StorageConfig:
+    def get_config_requirements(cls) -> StorageConfig:
         """Get the configuration requirements for local storage."""
         return StorageConfig(
             required=[],
