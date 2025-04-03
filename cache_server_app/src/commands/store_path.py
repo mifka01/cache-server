@@ -12,7 +12,7 @@ import os
 import sys
 from typing import Any
 
-from cache_server_app.src.binary_cache import BinaryCache
+from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.store_path import StorePath
 

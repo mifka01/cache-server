@@ -8,9 +8,10 @@ Author: Marek Križan
 Date: 1.5.2024
 """
 
-from typing import Optional
-from cache_server_app.src.binary_cache import BinaryCache
+from typing import List, Optional
+from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.database import CacheServerDatabase
+from cache_server_app.src.types import AgentRow
 
 
 class Workspace:
@@ -25,7 +26,7 @@ class Workspace:
         workspace: object representing binary cache which workspace uses
     """
 
-    def __init__(self, id: str, name: str, token: str, cache: BinaryCache):
+    def __init__(self, id: str, name: str, token: str, cache: BinaryCache) -> None:
         self.database = CacheServerDatabase()
         self.id = id
         self.name = name
@@ -54,5 +55,6 @@ class Workspace:
         self.database.delete_all_workspace_agents(self.name)
         self.database.delete_workspace(self.name)
 
-    def get_agents(self) -> list:
+    def get_agents(self) -> List[AgentRow]:
         return self.database.get_workspace_agents(self.name)
+

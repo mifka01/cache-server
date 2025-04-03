@@ -19,7 +19,7 @@ import jwt
 
 import cache_server_app.src.config.base as config
 from cache_server_app.src.api import BinaryCacheRequestHandler, HTTPBinaryCache
-from cache_server_app.src.binary_cache import BinaryCache
+from cache_server_app.src.cache.base import BinaryCache, CacheAccess
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.storage.factory import StorageFactory
 from cache_server_app.src.storage.manager import StorageManager
@@ -28,7 +28,7 @@ from cache_server_app.src.storage.manager import StorageManager
 class CacheCommands(BaseCommand):
     """Handles all cache-related commands."""
 
-    def create(self, name: str, port: int, retention: int | None, storages: List[Dict[str, str | Dict[str, str]]]) -> None:
+    def create(self, name: str, port: int, access:str, retention: int | None, storages: List[Dict[str, str | Dict[str, str]]]) -> None:
         """Create a new binary cache."""
         if BinaryCache.exist(name=name):
             print(f"ERROR: Binary cache {name} already exists.")
@@ -36,6 +36,10 @@ class CacheCommands(BaseCommand):
 
         if BinaryCache.exist(port=port):
             print(f"ERROR: There already is binary cache with port {port} specified.")
+            sys.exit(1)
+
+        if access not in CacheAccess.list():
+            print(f"ERROR: Access must be one of {CacheAccess.str()}.")
             sys.exit(1)
 
         if not retention:
@@ -62,7 +66,7 @@ class CacheCommands(BaseCommand):
             name,
             cache_url,
             cache_token,
-            "public",
+            access,
             port,
             retention,
             manager
@@ -137,7 +141,7 @@ class CacheCommands(BaseCommand):
             sys.exit(1)
         cache.delete()
 
-    def update(self, name: str, new_name: str | None, access: str | None, retention: int | None, port: int | None) -> None:
+    def update(self, name: str, new_name: str | None, port: int | None, access: str | None, retention: int | None) -> None:
         """Update a binary cache."""
         cache = BinaryCache.get(name=name)
         if not cache:
@@ -148,8 +152,12 @@ class CacheCommands(BaseCommand):
             print(f"ERROR: Binary cache {name} is running.")
             sys.exit(1)
 
-        if access:
-            cache.access = access
+        if access and access not in CacheAccess.list():
+            print(f"ERROR: Access must be one of {CacheAccess.str()}.")
+            sys.exit(1)
+
+        if access is None:
+            access = CacheAccess.PUBLIC.value
 
         if new_name:
             if not BinaryCache.get(new_name):

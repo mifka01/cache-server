@@ -13,6 +13,7 @@ from typing import Dict, List, Tuple
 import cache_server_app.src.config.base as config
 from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.storage.registry import StorageRegistry
+from cache_server_app.src.cache.base import CacheAccess
 
 
 class ConfigValidator:
@@ -64,6 +65,11 @@ class ConfigValidator:
                 port = cache["port"]
                 if not isinstance(port, int) or port < 1 or port > 65535:
                     self.errors.append(f"Cache '{name}': port must be an integer between 1 and 65535")
+
+            if "access" in cache:
+                access = cache["access"]
+                if access not in CacheAccess.list():
+                    self.errors.append(f"Cache '{name}': access must be one of {CacheAccess.str()}")
 
             if "retention" in cache:
                 retention = cache["retention"]
