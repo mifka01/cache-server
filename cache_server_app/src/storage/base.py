@@ -24,26 +24,30 @@ class StorageConfig:
 
 class Storage(ABC):
     def __init__(
-        self, type: str, config: Dict[str, str], root: str = ""
+        self, id: str, name:str, type: str, config: Dict[str, str], root: str = ""
     ) -> None:
         """Initialize the storage object.
 
         Parameters:
+            id (str): The ID of the storage.
+            name (str): The name of the storage.
             type (str): The type of storage.
             config (Dict[str, str]): The storage configuration.
             root (str): The path to the root directory. Defaults to "".
         """
-        self.root = root
+        self.id = id
+        self.name = name
         self.type = type
         self.config = config
+        self.root = root
 
         self.setup(config, root)
 
     def __str__(self) -> str:
-        return self.type
+        return f"{self.name} ({self.type})"
 
     @classmethod
-    def get_config(cls) -> StorageConfig:
+    def get_config_requirements(cls) -> StorageConfig:
         """Get the configuration requirements for this storage type."""
         raise NotImplementedError
 

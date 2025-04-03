@@ -8,3 +8,7 @@ class StorageType(StrEnum):
     @classmethod
     def list(cls):
         return [c.value for c in cls]
+
+    @classmethod
+    def str(cls):
+        (", ".join(cls.list()))

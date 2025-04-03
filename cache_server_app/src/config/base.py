@@ -1,14 +1,13 @@
 #!/usr/bin/env python3.12
 """
-config
-Module to parse configuration file.
+Configuration loader for the cache-server application.
+
 Author: Radim Mifka
 Date: 1.5.2024
-Modified: 30.3.2025
 """
 import os
 import sys
-import yaml
+from yaml import safe_load
 
 config_file = os.path.join(os.path.expanduser("~"), ".cache-server.yaml")
 if not os.path.exists(config_file):
@@ -17,7 +16,7 @@ if not os.path.exists(config_file):
 
 try:
     with open(config_file, 'r') as file:
-       config = yaml.safe_load(file)
+       config = safe_load(file)
 
     server_config = config.get("server", {})
     cache_dir = server_config.get("cache-dir", "/var/cache/cache-server")

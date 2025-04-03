@@ -1,6 +1,6 @@
 from argparse import ArgumentParser, _SubParsersAction
 
-import cache_server_app.src.config as config
+import cache_server_app.src.config.base as config
 from cache_server_app.src.storage.type import StorageType
 
 

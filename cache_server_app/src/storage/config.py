@@ -21,7 +21,7 @@ def get_storage_config(cache_config: Dict[str, str], storage_type: str) -> Optio
         print(f"ERROR: Unknown storage type: {storage_type}")
         return None
 
-    config = storage_class.get_config()
+    config = storage_class.get_config_requirements()
     storage_config = {}
 
     for key, value in cache_config.items():
@@ -37,4 +37,4 @@ def get_storage_config(cache_config: Dict[str, str], storage_type: str) -> Optio
         print(f"ERROR: Missing required configuration for {storage_type}: {', '.join(missing_keys)}")
         return None
 
-    return storage_config 
+    return storage_config

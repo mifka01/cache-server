@@ -28,12 +28,10 @@ class StorageRegistry:
         return decorator
 
     @classmethod
-    def get_class(cls, storage_type: str) -> Type[Storage] | None:
+    def get_class(cls, storage_type: str) -> Type[Storage]:
         """Get the storage class for a given storage type."""
-        try:
-            return cls._classes[StorageType(storage_type)]
-        except ValueError:
-            return None
+        return cls._classes[StorageType(storage_type)]
+
 
     @classmethod
     def get_all_types(cls) -> list[str]:

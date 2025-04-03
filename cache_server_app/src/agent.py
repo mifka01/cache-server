@@ -36,7 +36,12 @@ class Agent:
         row = CacheServerDatabase().get_agent_row(name)
         if not row:
             return None
-        return Agent(row[0], row[1], row[2], Workspace.get(row[3]))
+
+        workspace = Workspace.get(row[3])
+        if not workspace:
+            return None
+
+        return Agent(row[0], row[1], row[2], workspace)
 
     def save(self) -> None:
         self.database.insert_agent(self.id, self.name, self.token, self.workspace.name)

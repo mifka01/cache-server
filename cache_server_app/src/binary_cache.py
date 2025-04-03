@@ -15,10 +15,11 @@ import time
 
 import ed25519
 
-import cache_server_app.src.config as config
+import cache_server_app.src.config.base as config
 from cache_server_app.src.database import CacheServerDatabase
-from cache_server_app.src.storage.base import Storage
+from cache_server_app.src.storage.manager import StorageManager
 from cache_server_app.src.storage.factory import StorageFactory
+from typing import Optional, Self, Type
 
 
 class BinaryCache:
@@ -35,7 +36,7 @@ class BinaryCache:
         access: binary cache access ('public'/'private')
         port: port on which binary cache listens
         retention: binary cache retention
-        storage: storage object to handle cache storage
+        storages: list of storage objects
     """
 
     def __init__(
@@ -47,7 +48,7 @@ class BinaryCache:
         access: str,
         port: int,
         retention: int,
-        storage: Storage,
+        storage: StorageManager,
     ):
         self.cache_dir = os.path.join(config.cache_dir, name)
         self.database = CacheServerDatabase()
@@ -61,41 +62,34 @@ class BinaryCache:
         self.storage = storage
 
     @staticmethod
-    def get(name: str):
-        row = CacheServerDatabase().get_binary_cache_row(name)
-        if not row:
-            return None
-
-        id = row[0]
-        name = row[1]
-        storage_type = row[7]
-
-        cache_dir = os.path.join(config.cache_dir, name)
-        storage_config = CacheServerDatabase().get_storage_config(id)
-
-        storage = StorageFactory.create_storage(storage_type, storage_config, cache_dir)
-
-        return BinaryCache(
-            id, name, row[2], row[3], row[4], int(row[5]), int(row[6]), storage
-        )
+    def exist(id: str | None = None, name: str | None = None, port: int | None = None):
+        return CacheServerDatabase().get_binary_cache_row(id, name, port) is not None
 
     @staticmethod
-    def get_by_port(port: int):
-        row = CacheServerDatabase().get_binary_cache_row_by_port(port)
+    def get(id: str | None = None, name: str | None = None, port: int | None = None) -> Optional['BinaryCache']:
+        database = CacheServerDatabase()
+        row = database.get_binary_cache_row(id, name, port)
         if not row:
             return None
 
-        id = row[0]
-        name = row[1]
-        storage_type = row[7]
-
+        id = str(row[0])
+        name = str(row[1])
+        url = str(row[2])
+        token = str(row[3])
+        access = str(row[4])
+        port = int(row[5])
+        retention = int(row[6])
         cache_dir = os.path.join(config.cache_dir, name)
-        storage_config = CacheServerDatabase().get_storage_config(id)
 
-        storage = StorageFactory.create_storage(storage_type, storage_config, cache_dir)
-
+        storages = []
+        for storage in database.get_cache_storages(id):
+            storage_id = storage[0]
+            storage_name = storage[1]
+            storage_type = storage[2]
+            storage_config = database.get_storage_config(storage_id)
+            storages.append(StorageFactory.create_storage(storage_id, storage_name, storage_type, storage_config, cache_dir))
         return BinaryCache(
-            id, name, row[2], row[3], row[4], int(row[5]), int(row[6]), storage
+            id, name, url, token, access, port, retention, StorageManager(id, storages, database)
         )
 
     def save(self) -> None:
@@ -107,14 +101,9 @@ class BinaryCache:
             self.access,
             self.port,
             self.retention,
-            self.storage,
         )
 
-        for key, value in self.storage.config.items():
-            self.database.insert_storage_config(self.id, key, value)
-
     def update(self) -> None:
-        #!TODO update storage
         self.database.update_binary_cache(
             self.id,
             self.name,
@@ -124,11 +113,11 @@ class BinaryCache:
             self.port,
             self.retention,
         )
+        #! TODO Update storages
 
     def delete(self) -> None:
-        self.database.delete_all_cache_paths(self.name)
-        self.database.delete_binary_cache(self.name)
-        self.database.delete_storage_config_records(self.id)
+        self.database.delete_storage(self.id)
+        self.database.delete_binary_cache(self.id)
 
     def cache_json(self, permission: str) -> str:
         public_key = self.storage.read("key.pub")
@@ -152,11 +141,12 @@ class BinaryCache:
         return {
             "cacheName": self.name,
             "isPublic": (self.access == "public"),
+            # !TODO: CHECK THIS
             "publicKey": public_key.split(":")[1],
         }
 
     def get_store_hashes(self) -> list[str]:
-        return [path[1] for path in self.database.get_cache_store_paths(self.name)]
+        return [path[1] for path in self.storage.get_store_paths()]
 
     def get_missing_store_hashes(self, hashes: list) -> list:
         return [
@@ -166,7 +156,7 @@ class BinaryCache:
         ]
 
     def get_paths(self) -> list:
-        return self.database.get_cache_store_paths(self.name)
+        return self.storage.get_store_paths()
 
     def update_workspaces(self, new_name: str) -> None:
         self.database.update_cache_in_workspaces(self.name, new_name)
@@ -180,7 +170,7 @@ class BinaryCache:
             time.sleep(3600)
 
     def collect_garbage(self) -> None:
-        # TODO: Implement garbage collection for any storage
+        # TODO: Implement garbage collection
         for file in os.listdir(self.cache_dir):
             file_age = (
                 os.path.getctime(os.path.join(self.cache_dir, file)) - time.time()

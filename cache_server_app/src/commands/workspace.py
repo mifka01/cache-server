@@ -14,7 +14,7 @@ from typing import Any
 
 import jwt
 
-import cache_server_app.src.config as config
+import cache_server_app.src.config.base as config
 from cache_server_app.src.binary_cache import BinaryCache
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.workspace import Workspace
@@ -29,7 +29,7 @@ class WorkspaceCommands(BaseCommand):
             print(f"ERROR: Workspace {name} already exists.")
             sys.exit(1)
 
-        cache = BinaryCache.get(cache_name)
+        cache = BinaryCache.get(name=cache_name)
         if not cache:
             print(f"ERROR: Binary cache {cache_name} does not exist.")
             sys.exit(1)
@@ -70,7 +70,7 @@ class WorkspaceCommands(BaseCommand):
             print(f"ERROR: Workspace {name} does not exist.")
             sys.exit(1)
 
-        cache = BinaryCache.get(cache_name)
+        cache = BinaryCache.get(name=cache_name)
         if not cache:
             print(f"ERROR: Binary cache {cache_name} does not exist.")
             sys.exit(1)
@@ -87,8 +87,8 @@ class WorkspaceCommands(BaseCommand):
             "info": self.info,
             "cache": self.cache,
         }
-        
+
         if command not in commands:
             raise ValueError(f"Unknown workspace command: {command}")
-            
-        commands[command](*args, **kwargs) 
+
+        commands[command](*args, **kwargs)

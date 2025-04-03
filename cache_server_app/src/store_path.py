@@ -11,6 +11,7 @@ Date: 1.5.2024
 import base64
 import os
 
+from cache_server_app.src.storage.base import Storage
 import ed25519
 
 from cache_server_app.src.binary_cache import BinaryCache
@@ -32,7 +33,7 @@ class StorePath:
         nar_size: size of decompressed NAR file
         deriver: store path of the deriver
         references: immediate dependencies of the store path
-        cache: binary cache in which the store path is stored
+        storage: storage object
     """
 
     def __init__(
@@ -46,7 +47,7 @@ class StorePath:
         nar_size: int,
         deriver: str,
         references: list[str],
-        cache: BinaryCache,
+        storage: Storage
     ):
         self.id = id
         self.database = CacheServerDatabase()
@@ -58,21 +59,20 @@ class StorePath:
         self.nar_size = nar_size
         self.deriver = deriver
         self.references = references
-        self.cache = cache
+        self.storage = storage
 
     @staticmethod
     def get(cache_name: str, store_hash: str = "", file_hash: str = ""):
+        cache = BinaryCache.get(cache_name)
+        if not cache:
+            return None
 
-        if store_hash:
-            row = CacheServerDatabase().get_store_path_row(
-                cache_name, store_hash=store_hash
-            )
-        else:
-            row = CacheServerDatabase().get_store_path_row(
-                cache_name, file_hash=file_hash
-            )
-
+        row = cache.storage.get_store_path(store_hash=store_hash, file_hash=file_hash)
         if not row:
+            return None
+
+        storage = cache.storage.get_storage(str(row[9]))
+        if not storage:
             return None
 
         return StorePath(
@@ -85,11 +85,11 @@ class StorePath:
             row[6],
             row[7],
             row[8].split(" "),
-            BinaryCache.get(row[9]),
+            storage
         )
 
     def get_narinfo(self) -> str:
-        file_name = self.cache.storage.find(self.file_hash)
+        file_name = self.storage.find(self.file_hash)
 
         if file_name is None:
             raise FileNotFoundError(f"File with hash {self.file_hash} not found.")
@@ -116,7 +116,7 @@ Sig: {self.signature()}
         return output
 
     def signature(self) -> str:
-        content = self.cache.storage.read("key.priv", binary=True).split(b":")
+        content = self.storage.read("key.priv", binary=True).split(":")
 
         prefix = content[0]
 
@@ -134,9 +134,9 @@ Sig: {self.signature()}
             self.nar_hash,
             self.nar_size,
             self.deriver,
-            " ".join(self.references),
-            self.cache.name,
+            self.references,
+            self.storage.id
         )
 
     def delete(self) -> None:
-        self.database.delete_store_path(self.store_hash, self.cache.name)
+        self.database.delete_store_path(self.store_hash, self.storage.id)

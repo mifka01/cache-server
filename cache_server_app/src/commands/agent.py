@@ -14,7 +14,7 @@ from typing import Any
 
 import jwt
 
-import cache_server_app.src.config as config
+import cache_server_app.src.config.base as config
 from cache_server_app.src.agent import Agent
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.workspace import Workspace
