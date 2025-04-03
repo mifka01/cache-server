@@ -9,14 +9,18 @@ Date: 5.12.2024
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List
-
-from cache_server_app.src.storage.type import StorageType
+from typing import Dict, List, Literal, Optional, Tuple, Union, overload
 
 
 @dataclass
 class StorageConfig:
-    """Configuration for a storage type."""
+    """Configuration requirements for a storage type.
+
+    Attributes:
+        required: List of required configuration keys
+        prefix: Prefix for configuration keys
+        config_key: Key used to identify this storage type in configuration
+    """
     required: List[str]
     prefix: str
     config_key: str
@@ -24,7 +28,7 @@ class StorageConfig:
 
 class Storage(ABC):
     def __init__(
-        self, id: str, name:str, type: str, config: Dict[str, str], root: str = ""
+        self, id: str, name: str, type: str, config: Dict[str, str], root: str = ""
     ) -> None:
         """Initialize the storage object.
 
@@ -66,7 +70,7 @@ class Storage(ABC):
 
         Parameters:
             path (str): The path to the file from the root directory.
-            data (str): The data to write to the file. Defaults to b"".
+            data (bytes): The data to write to the file. Defaults to b"".
         """
         raise NotImplementedError
 
@@ -76,7 +80,7 @@ class Storage(ABC):
 
         Parameters:
             path (str): The path to the file from the root directory.
-            data (str): The data to write to the file.
+            data (bytes): The data to write to the file.
         """
         raise NotImplementedError
 
@@ -89,8 +93,17 @@ class Storage(ABC):
         """
         raise NotImplementedError
 
+    @overload
+    def read(self, path: str, binary: Literal[True]) -> bytes: ...
+
+    @overload
+    def read(self, path: str, binary: Literal[False]) -> str: ...
+
+    @overload
+    def read(self, path: str) -> str: ...
+
     @abstractmethod
-    def read(self, path: str, binary: bool = False) -> str | bytes:
+    def read(self, path: str, binary: bool = False) -> Union[str, bytes]:
         """Read the contents of a file.
 
         Parameters:
@@ -98,7 +111,7 @@ class Storage(ABC):
             binary (bool): If True, the file is read in binary mode. Defaults to False.
 
         Returns:
-            str | bytes: The contents of the file.
+            Union[str, bytes]: The contents of the file.
         """
         raise NotImplementedError
 
@@ -113,16 +126,16 @@ class Storage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list(self) -> list[str]:
+    def list(self) -> List[str]:
         """List all files in the root directory.
 
         Returns:
-            list: A list of file names in the root directory.
+            List[str]: A list of file names in the root directory.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def find(self, name: str, strict: bool = False) -> str | None:
+    def find(self, name: str, strict: bool = False) -> Optional[str]:
         """Check if a file with the given name exists in the root directory.
 
         Parameters:
@@ -130,6 +143,6 @@ class Storage(ABC):
             strict (bool): If False, the search ignores extension. Defaults to False.
 
         Returns:
-            str | None: The path to the file if found, None otherwise.
+            Optional[str]: The path to the file if found, None otherwise.
         """
         raise NotImplementedError

@@ -20,9 +20,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import websockets
 
 from cache_server_app.src.agent import Agent
-from cache_server_app.src.binary_cache import BinaryCache
+from cache_server_app.src.cache.base import BinaryCache
+from cache_server_app.src.cache.access import CacheAccess
 from cache_server_app.src.store_path import StorePath
-
 
 class HTTPCacheServer(HTTPServer):
     def __init__(self, server_address, request_handler, websocket_handler):
@@ -47,7 +47,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
 
-            if cache.access == "private":
+            if cache.access == CacheAccess.PRIVATE.value:
                 if self.headers["Authorization"].split()[1] != cache.token:
                     self.send_response(401)
                     self.end_headers()
@@ -164,7 +164,13 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 #         filename = f
 
                 name = m.group(1)
-                filename = cache.storage.find(name)
+                finding = cache.storage.find(name)
+                if finding is None:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+
+                filename, storage = finding
 
                 StorePath(
                     id=str(uuid.uuid4()),
@@ -176,14 +182,14 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                     nar_size=narinfo_create["cNarSize"],
                     deriver=narinfo_create["cDeriver"],
                     references=narinfo_create["cReferences"],
-                    storage=cache.storage
+                    storage=storage
                 ).save()
 
                 new_filename = "{}.nar{}".format(
                     narinfo_create["cFileHash"], os.path.splitext(filename)[1]
                 )
 
-                cache.storage.rename(filename, new_filename)
+                storage.rename(filename, new_filename)
 
                 # os.rename(
                 #     path,
@@ -212,14 +218,16 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 #         filename = f
 
                 name = m.group(1)
-                filename = cache.storage.find(name)
+                findings = cache.storage.find(name)
 
-                if filename == None:
+                if findings is None:
                     self.send_response(400)
                     self.end_headers()
                     return
 
-                cache.storage.remove(filename)
+                filename, storage = findings
+
+                storage.remove(filename)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -283,8 +291,8 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
 
 class HTTPBinaryCache(HTTPServer):
     def __init__(self, server_address, request_handler, cache: BinaryCache):
-        self.cache = cache
         super().__init__(server_address, request_handler)
+        self.cache = cache
 
 class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
@@ -296,7 +304,7 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
     Class to handle binary cache HTTP requests.
     """
     def do_GET(self) -> None:
-        if self.server.cache.access == "private":
+        if self.server.cache.access == CacheAccess.PRIVATE.value:
             if (
                 base64.b64decode(self.headers["Authorization"].split()[1]).decode(
                     "utf-8"
@@ -346,17 +354,14 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
             nar_file = "{}.nar.{}".format(m.group(1), m.group(2))
 
-            # with open(nar_file, "rb") as file:
-            #     response = file.read()
-
             response = self.server.cache.storage.read(nar_file, binary=True)
 
             self.send_response(200)
             self.send_header("Content-Type", "text/x-nix-narinfo")
             self.send_header("Content-Length", str(len(response)))
             self.end_headers()
-            self.wfile.write(response)
 
+            self.wfile.write(response)
         else:
             self.send_response(400)
             self.end_headers()
@@ -371,7 +376,13 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
             content_length = int(self.headers["Content-Length"])
 
             name = m.group(1)
-            filename = self.server.cache.storage.find(name)
+            findings = self.server.cache.storage.find(name)
+            if findings is None:
+                self.send_response(400)
+                self.end_headers()
+                return
+
+            filename, storage = findings
 
             if not filename:
                 self.send_response(400)
@@ -380,7 +391,7 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
             body = self.rfile.read(content_length)
 
-            self.server.cache.storage.save(filename, body)
+            storage.save(filename, body)
 
             # with open(
             #     os.path.join(self.server.cache.cache_dir, filename), "wb"
@@ -396,7 +407,7 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self) -> None:
 
-        if self.server.cache.access == "private":
+        if self.server.cache.access == CacheAccess.PRIVATE.value:
             if (
                 base64.b64decode(self.headers["Authorization"].split()[1]).decode(
                     "utf-8"
@@ -440,12 +451,14 @@ class WebSocketConnectionHandler:
 
     async def agent_handler(self, websocket):
         agent = Agent.get(websocket.request_headers["name"])
+        if not agent:
+            await websocket.close()
+            return
 
         try:
-            if not agent:
-                await websocket.close()
             if websocket.request_headers["Authorization"].split()[1] != agent.token:
                 await websocket.close()
+                return
 
             cache = agent.workspace.cache
             self.agents[agent.name] = websocket

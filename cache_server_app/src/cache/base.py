@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.12
 """
-binary_cache
+base
 
 Module containing the BinaryCache class.
 
@@ -12,6 +12,8 @@ import base64
 import json
 import os
 import time
+from typing import Dict, List, Optional
+from cache_server_app.src.types import StorePathRow
 
 import ed25519
 
@@ -19,8 +21,7 @@ import cache_server_app.src.config.base as config
 from cache_server_app.src.database import CacheServerDatabase
 from cache_server_app.src.storage.manager import StorageManager
 from cache_server_app.src.storage.factory import StorageFactory
-from typing import Optional, Self, Type
-
+from cache_server_app.src.cache.access import CacheAccess
 
 class BinaryCache:
     """
@@ -33,7 +34,7 @@ class BinaryCache:
         name: binary cache name
         url: binary cache url
         token: binary cache JWT authentication token
-        access: binary cache access ('public'/'private')
+        access: binary cache access
         port: port on which binary cache listens
         retention: binary cache retention
         storages: list of storage objects
@@ -49,47 +50,48 @@ class BinaryCache:
         port: int,
         retention: int,
         storage: StorageManager,
-    ):
+    ) -> None:
         self.cache_dir = os.path.join(config.cache_dir, name)
         self.database = CacheServerDatabase()
         self.id = id
         self.name = name
         self.url = url
         self.token = token
-        self.access = access
+        self.access = CacheAccess(access)
         self.port = port
         self.retention = retention
         self.storage = storage
 
     @staticmethod
-    def exist(id: str | None = None, name: str | None = None, port: int | None = None):
+    def exist(id: Optional[str] = None, name: Optional[str] = None, port: Optional[int] = None) -> bool:
         return CacheServerDatabase().get_binary_cache_row(id, name, port) is not None
 
     @staticmethod
-    def get(id: str | None = None, name: str | None = None, port: int | None = None) -> Optional['BinaryCache']:
+    def get(id: Optional[str] = None, name: Optional[str] = None, port: Optional[int] = None) -> Optional['BinaryCache']:
         database = CacheServerDatabase()
         row = database.get_binary_cache_row(id, name, port)
         if not row:
             return None
 
-        id = str(row[0])
-        name = str(row[1])
-        url = str(row[2])
-        token = str(row[3])
-        access = str(row[4])
-        port = int(row[5])
-        retention = int(row[6])
-        cache_dir = os.path.join(config.cache_dir, name)
+        cache_dir = os.path.join(config.cache_dir, row[1])
 
         storages = []
-        for storage in database.get_cache_storages(id):
+        for storage in database.get_cache_storages(row[0]):
             storage_id = storage[0]
             storage_name = storage[1]
             storage_type = storage[2]
             storage_config = database.get_storage_config(storage_id)
             storages.append(StorageFactory.create_storage(storage_id, storage_name, storage_type, storage_config, cache_dir))
+
         return BinaryCache(
-            id, name, url, token, access, port, retention, StorageManager(id, storages, database)
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            row[4],
+            row[5],
+            row[6],
+            StorageManager(row[0], storages, database)
         )
 
     def save(self) -> None:
@@ -98,7 +100,7 @@ class BinaryCache:
             self.name,
             self.url,
             self.token,
-            self.access,
+            self.access.value,
             self.port,
             self.retention,
         )
@@ -109,11 +111,10 @@ class BinaryCache:
             self.name,
             self.url,
             self.token,
-            self.access,
+            self.access.value,
             self.port,
             self.retention,
         )
-        #! TODO Update storages
 
     def delete(self) -> None:
         self.database.delete_storage(self.id)
@@ -125,7 +126,7 @@ class BinaryCache:
         return json.dumps(
             {
                 "githubUsername": "",
-                "isPublic": (self.access == "public"),
+                "isPublic": (self.access == CacheAccess.PUBLIC.value),
                 "name": self.name,
                 "permission": permission,  # TODO
                 "preferredCompressionMethod": "XZ",
@@ -134,28 +135,27 @@ class BinaryCache:
             }
         )
 
-    def cache_workspace_dict(self) -> dict:
-
+    def cache_workspace_dict(self) -> Dict[str, str | bool]:
         public_key = self.storage.read("key.pub")
 
         return {
             "cacheName": self.name,
-            "isPublic": (self.access == "public"),
+            "isPublic": (self.access == CacheAccess.PUBLIC.value),
             # !TODO: CHECK THIS
             "publicKey": public_key.split(":")[1],
         }
 
-    def get_store_hashes(self) -> list[str]:
+    def get_store_hashes(self) -> List[str]:
         return [path[1] for path in self.storage.get_store_paths()]
 
-    def get_missing_store_hashes(self, hashes: list) -> list:
+    def get_missing_store_hashes(self, hashes: List[str]) -> List[str]:
         return [
             store_hash
             for store_hash in hashes
             if store_hash not in self.get_store_hashes()
         ]
 
-    def get_paths(self) -> list:
+    def get_paths(self) -> List[StorePathRow]:
         return self.storage.get_store_paths()
 
     def update_workspaces(self, new_name: str) -> None:
@@ -164,7 +164,7 @@ class BinaryCache:
     def update_paths(self, new_name: str) -> None:
         self.database.update_cache_in_paths(self.name, new_name)
 
-    def garbage_collector(self):
+    def garbage_collector(self) -> None:
         while True:
             self.collect_garbage()
             time.sleep(3600)

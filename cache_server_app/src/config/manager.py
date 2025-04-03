@@ -15,7 +15,7 @@ from dataclasses import dataclass
 import cache_server_app.src.config.base as config
 from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.storage.registry import StorageRegistry
-from cache_server_app.src.binary_cache import BinaryCache
+from cache_server_app.src.cache.base import BinaryCache, CacheAccess
 from cache_server_app.src.config.validator import ConfigValidator
 
 
@@ -213,6 +213,7 @@ class ConfigManager:
         """Create a new cache."""
         port = cache_config.get("port", config.default_port)
         retention = cache_config.get("retention", config.default_retention)
+        access = cache_config.get("access", CacheAccess.PUBLIC.value)
         storages = []
 
         for storage in cache_config.get("storages", []):
@@ -221,14 +222,15 @@ class ConfigManager:
             storage_config = self._get_storage_config(storage, storage_type)
             storages.append({"name": storage_name, "type": storage_type, "config": storage_config})
 
-        self.registry.execute("cache", "create", name, port, retention, storages)
+        self.registry.execute("cache", "create", name, port, access, retention, storages)
 
     def _update_cache(self, name: str, cache_config: Dict) -> None:
         """Update an existing cache."""
         port = cache_config.get("port", config.default_port)
         retention = cache_config.get("retention", config.default_retention)
+        access = cache_config.get("access", CacheAccess.PUBLIC.value)
 
-        self.registry.execute("cache", "update", name, None, port, retention)
+        self.registry.execute("cache", "update", name, None, port, access, retention)
 
     def _create_workspace(self, name: str, workspace_config: Dict) -> None:
         """Create a new workspace."""

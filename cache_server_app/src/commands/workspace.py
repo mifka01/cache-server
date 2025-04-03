@@ -15,7 +15,7 @@ from typing import Any
 import jwt
 
 import cache_server_app.src.config.base as config
-from cache_server_app.src.binary_cache import BinaryCache
+from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.workspace import Workspace
 

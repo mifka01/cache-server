@@ -8,6 +8,8 @@ Author: Marek Križan
 Date: 1.5.2024
 """
 
+from typing import Optional
+
 from cache_server_app.src.database import CacheServerDatabase
 from cache_server_app.src.workspace import Workspace
 
@@ -24,7 +26,7 @@ class Agent:
         workspace: object representing workspace to which agent belongs
     """
 
-    def __init__(self, id: str, name: str, token: str, workspace: Workspace):
+    def __init__(self, id: str, name: str, token: str, workspace: Workspace) -> None:
         self.database = CacheServerDatabase()
         self.id = id
         self.name = name
@@ -32,7 +34,7 @@ class Agent:
         self.workspace = workspace
 
     @staticmethod
-    def get(name: str):
+    def get(name: str) -> Optional['Agent']:
         row = CacheServerDatabase().get_agent_row(name)
         if not row:
             return None

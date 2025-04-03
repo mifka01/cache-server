@@ -14,7 +14,7 @@ import os
 from cache_server_app.src.storage.base import Storage
 import ed25519
 
-from cache_server_app.src.binary_cache import BinaryCache
+from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.database import CacheServerDatabase
 
 
@@ -71,7 +71,7 @@ class StorePath:
         if not row:
             return None
 
-        storage = cache.storage.get_storage(str(row[9]))
+        storage = cache.storage.get_storage(row[9])
         if not storage:
             return None
 
@@ -116,8 +116,7 @@ Sig: {self.signature()}
         return output
 
     def signature(self) -> str:
-        content = self.storage.read("key.priv", binary=True).split(":")
-
+        content = self.storage.read("key.priv", binary=True).split(b":")
         prefix = content[0]
 
         sk = ed25519.SigningKey(base64.b64decode(content[1]))

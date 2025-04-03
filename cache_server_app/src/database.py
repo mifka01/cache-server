@@ -10,9 +10,11 @@ Date: 1.5.2024
 
 import os
 import sqlite3
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Tuple
 
+from cache_server_app.src.cache.access import CacheAccess
 import cache_server_app.src.config.base as config
+from cache_server_app.src.types import BinaryCacheRow, StorageRow, StorePathRow, WorkspaceRow, AgentRow
 
 
 class CacheServerDatabase:
@@ -43,7 +45,7 @@ class CacheServerDatabase:
                                     url VARCHAR UNIQUE NOT NULL,
                                     token VARCHAR NOT NULL,
                                     access VARCHAR NOT NULL,
-                                    port VARCHAR UNIQUE NOT NULL,
+                                    port INT UNIQUE NOT NULL,
                                     retention INT NOT NULL
                                 ); """
 
@@ -218,14 +220,14 @@ class CacheServerDatabase:
     ) -> None:
         statement = """
             UPDATE binary_cache
-            SET name='{}', url='{}', token='{}', access='{}', port='{}', retention='{}',
+            SET name='{}', url='{}', token='{}', access='{}', port='{}', retention='{}'
             WHERE id='{}'
             ; """.format(
             name, url, token, access, port, retention, id
         )
         self.execute_statement(statement)
 
-    def get_binary_cache_row(self, id: str | None = None, name: str | None = None, port: int | None = None) -> list[str | int] | None:
+    def get_binary_cache_row(self, id: str | None = None, name: str | None = None, port: int | None = None) -> Optional[BinaryCacheRow]:
         if id:
             statement = """
                 SELECT * FROM binary_cache
@@ -257,7 +259,7 @@ class CacheServerDatabase:
 
         return db_result[0]
 
-    def get_cache_storages(self, id: str) -> list[str]:
+    def get_cache_storages(self, id: str) -> List[StorageRow]:
         statement = """
             SELECT * FROM storage
             WHERE cache_id='{}'
@@ -280,27 +282,31 @@ class CacheServerDatabase:
 
         return {row[0]: row[1] for row in db_result}
 
-    def get_private_cache_list(self) -> list[str]:
+    def get_private_cache_list(self) -> List[BinaryCacheRow]:
         statement = """
             SELECT * FROM binary_cache
-            WHERE access='private'
+            WHERE access={}
+            ; """.format(
+            CacheAccess.PRIVATE.value
+        )
+        return self.execute_select(statement)
+
+    def get_public_cache_list(self) -> List[BinaryCacheRow]:
+        statement = """
+            SELECT * FROM binary_cache
+            WHERE access={}
+            ; """.format(
+            CacheAccess.PUBLIC.value
+        )
+        return self.execute_select(statement)
+
+    def get_cache_list(self) -> List[BinaryCacheRow]:
+        statement = """
+            SELECT * FROM binary_cache
             ; """
         return self.execute_select(statement)
 
-    def get_public_cache_list(self) -> list[str]:
-        statement = """
-            SELECT * FROM binary_cache
-            WHERE access='public'
-            ; """
-        return self.execute_select(statement)
-
-    def get_cache_list(self) -> list[str]:
-        statement = """
-            SELECT * FROM binary_cache
-            ; """
-        return self.execute_select(statement)
-
-    def get_storages_store_paths(self, storage_ids: List[str]) -> list[str]:
+    def get_storages_store_paths(self, storage_ids: List[str]) -> List[StorePathRow]:
         statement = """
             SELECT * FROM store_path
             WHERE storage_id IN ({})
@@ -309,7 +315,7 @@ class CacheServerDatabase:
         )
         return self.execute_select(statement)
 
-    def get_storage_store_paths(self, storage_id: str) -> list[str]:
+    def get_storage_store_paths(self, storage_id: str) -> List[StorePathRow]:
         statement = """
             SELECT * FROM store_path
             WHERE storage_id='{}'
@@ -338,7 +344,7 @@ class CacheServerDatabase:
         )
         self.execute_statement(statement)
 
-    def get_agent_row(self, name: str) -> list | None:
+    def get_agent_row(self, name: str) -> Optional[AgentRow]:
         statement = """
             SELECT * FROM agent
             WHERE name='{}'
@@ -352,7 +358,7 @@ class CacheServerDatabase:
 
         return db_result[0]
 
-    def get_workspace_agents(self, workspace_name: str) -> list[str]:
+    def get_workspace_agents(self, workspace_name: str) -> List[AgentRow]:
         statement = """
             SELECT * FROM agent
             WHERE workspace_name='{}'
@@ -361,9 +367,18 @@ class CacheServerDatabase:
         )
         return self.execute_select(statement)
 
+    def get_store_paths(self, storage_ids: List[str]) -> List[StorePathRow]:
+        statement = """
+            SELECT * FROM store_path
+            WHERE storage_id IN ({})
+            ; """.format(
+            storage_ids
+        )
+        return self.execute_select(statement)
+
     def get_store_path_row(
         self, storage_ids: List[str], store_hash: str = "", file_hash: str = ""
-    ) -> list | None:
+    ) -> Optional[StorePathRow]:
         if store_hash:
             statement = """
                 SELECT * FROM store_path
@@ -449,7 +464,7 @@ class CacheServerDatabase:
         )
         self.execute_statement(statement)
 
-    def get_workspace_row(self, id: str | None = None, name: str | None = None, token : str | None = None):
+    def get_workspace_row(self, id: str | None = None, name: str | None = None, token : str | None = None) -> Optional[WorkspaceRow]:
         if id:
             statement = """
                 SELECT * FROM workspace
@@ -481,7 +496,7 @@ class CacheServerDatabase:
 
         return db_result[0]
 
-    def get_workspace_row_by_token(self, token: str) -> list | None:
+    def get_workspace_row_by_token(self, token: str) -> Optional[WorkspaceRow]:
         statement = """
             SELECT * FROM workspace
             WHERE token='{}'
@@ -504,7 +519,7 @@ class CacheServerDatabase:
         )
         self.execute_statement(statement)
 
-    def get_workspace_list(self) -> list[str]:
+    def get_workspace_list(self) -> List[WorkspaceRow]:
         statement = """
             SELECT * FROM workspace
             ; """
