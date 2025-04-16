@@ -32,12 +32,36 @@ class ConfigValidator:
         """
         self.errors = []
 
+        self._validate_server(config.server_config)
         self._validate_caches(config.caches)
         self._validate_workspaces(config.workspaces, config.caches)
         self._validate_agents(config.agents, config.workspaces)
 
         is_valid = len(self.errors) == 0
         return is_valid, self.errors
+
+    def _validate_server(self, server: Dict) -> None:
+        """Validate server configurations."""
+        if not isinstance(server, dict):
+            self.errors.append("'server' must be an object")
+            return
+
+        required_fields = ["cache-dir", "database", "hostname", "server-port", "deploy-port"]
+
+        for field in required_fields:
+            if field not in server:
+                self.errors.append(f"Server is missing required field '{field}'")
+
+        for field in ["cache-dir", "database", "hostname", "dht-bootstrap-host", "key"]:
+            if not isinstance(server[field], str):
+                self.errors.append(f"Server '{field}' must be a string")
+
+        for field in ["dht-port", "dht-bootstrap-port", "server-port", "deploy-port"]:
+            if not isinstance(server[field], int) or server[field] < 1 or server[field] > 65535:
+                self.errors.append(f"Server '{field}' must be an integer between 1 and 65535")
+
+        if "auto-start" in server and not isinstance(server["auto-start"], bool):
+            self.errors.append("Server 'auto-start' must be a boolean")
 
     def _validate_caches(self, caches: List[Dict]) -> None:
         """Validate cache configurations."""

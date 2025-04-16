@@ -13,6 +13,9 @@ from cache_server_app.src.argument_parsing import handle_arguments
 from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.config.manager import ConfigManager
 from cache_server_app.src.database import CacheServerDatabase
+from cache_server_app.src.dht import DHT
+import opendht as dht
+import time
 
 
 def load_configuration() -> bool:
@@ -26,21 +29,14 @@ def load_configuration() -> bool:
 
     return validation
 
-
 def start_services() -> None:
-    """Start the server and all configured caches if auto-start is enabled."""
+    """Start the server in foreground - no longer launches caches here."""
     if not config.auto_start_server:
         return
 
+    # Start server in foreground mode
     registry = CommandRegistry()
-
     registry.execute("server", "listen")
-
-    for cache_config in config.caches:
-        name = cache_config.get("name")
-        if name:
-            registry.execute("cache", "start", name)
-
 
 def main() -> None:
     """Main entry point for the cache-server application."""
