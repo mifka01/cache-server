@@ -44,5 +44,6 @@ class CacheManager:
 
         self.cache_processes[name] = process
         print(f"Cache {name} started with PID {process.pid}.")
+        self.cache_commands.info(name)
 
         return True
