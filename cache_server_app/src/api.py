@@ -67,7 +67,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             self.path,
         ):
             deploy_id = m.group(1)
-            deploy_status = self.server.websocket_handler.deployments[deploy_id]
+            deploy_status = se,lf.server.websocket_handler.deployments[deploy_id]
             response = json.dumps(
                 {
                     "closureSize": 0,
@@ -190,6 +190,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 )
 
                 storage.rename(filename, new_filename)
+                cache.dht.put(narinfo_create['cNarHash'], cache.id)
 
                 # os.rename(
                 #     path,
@@ -448,6 +449,8 @@ class WebSocketConnectionHandler:
         self.port = port
         self.agents: dict[str, websockets.WebSocketServerProtocol] = {}
         self.deployments: dict[str, str] = {}
+        self._stop_event = asyncio.Event()
+
 
     async def agent_handler(self, websocket):
         agent = Agent.get(websocket.request_headers["name"])
@@ -553,4 +556,9 @@ class WebSocketConnectionHandler:
 
     async def run(self):
         async with websockets.serve(self.handler, "localhost", self.port):
-            await asyncio.Future()
+            print(f"WebSocket server started on ws://localhost:{self.port}")
+            await self._stop_event.wait()
+
+    def stop(self):
+        if not self._stop_event.is_set():
+            self._stop_event.set()

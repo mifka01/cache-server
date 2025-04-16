@@ -22,6 +22,7 @@ from cache_server_app.src.database import CacheServerDatabase
 from cache_server_app.src.storage.manager import StorageManager
 from cache_server_app.src.storage.factory import StorageFactory
 from cache_server_app.src.cache.access import CacheAccess
+from cache_server_app.src.dht import DHT
 
 class BinaryCache:
     """
@@ -61,6 +62,7 @@ class BinaryCache:
         self.port = port
         self.retention = retention
         self.storage = storage
+        self.dht = DHT.get_instance()
 
     @staticmethod
     def exist(id: Optional[str] = None, name: Optional[str] = None, port: Optional[int] = None) -> bool:
@@ -93,6 +95,20 @@ class BinaryCache:
             row[6],
             StorageManager(row[0], storages, database)
         )
+
+    def advertise(self) -> None:
+        """Advertise the binary cache to the DHT."""
+
+        payload = {
+            "name": self.name,
+            "host": config.server_hostname,
+            "port": self.port,
+            "load": '',
+            "free_space": '',
+        }
+
+        data = json.dumps(payload)
+        self.dht.put(f"cache:{self.id}", data)
 
     def save(self) -> None:
         self.database.insert_binary_cache(

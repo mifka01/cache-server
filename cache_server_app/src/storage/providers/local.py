@@ -30,7 +30,7 @@ class LocalStorage(Storage):
         if os.path.exists(path):
             return
         try:
-            os.makedirs(path)
+            os.makedirs(path, mode=0o755)
         except PermissionError:
             print(f"ERROR: Can't create directory {path}. Permission denied.")
             exit(1)

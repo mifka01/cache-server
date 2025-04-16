@@ -91,7 +91,10 @@ class CacheCommands(BaseCommand):
             cache
         )
         print(f"Binary cache started http://localhost:{cache.port}")
-        server.serve_forever()
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            sys.exit(0)
 
     def stop(self, name: str) -> None:
         """Stop a binary cache."""
