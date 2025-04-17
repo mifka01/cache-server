@@ -41,7 +41,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if m := re.match(r"^/api/v1/cache/([a-z0-9]*)(\?)?", self.path):
-            cache = BinaryCache.get(m.group(1))
+            cache = BinaryCache.get(name=m.group(1))
             if not cache:
                 self.send_response(400)
                 self.end_headers()
@@ -67,7 +67,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             self.path,
         ):
             deploy_id = m.group(1)
-            deploy_status = se,lf.server.websocket_handler.deployments[deploy_id]
+            deploy_status = self.server.websocket_handler.deployments[deploy_id]
             response = json.dumps(
                 {
                     "closureSize": 0,
@@ -96,7 +96,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if m := re.match(r"^/api/v1/cache/([a-z0-9]*)", self.path):
 
-            cache = BinaryCache.get(m.group(1))
+            cache = BinaryCache.get(name=m.group(1))
 
             if not cache:
                 self.send_response(400)
