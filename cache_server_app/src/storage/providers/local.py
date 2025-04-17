@@ -4,6 +4,7 @@ local
 This module contains the implementation of the LocalStorage class, which is a subclass of the Storage class.
 
 Author: Radim Mifka
+
 Date: 5.12.2024
 """
 

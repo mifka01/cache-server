@@ -5,6 +5,7 @@ agent
 Modul containing the Agent class.
 
 Author: Marek Križan
+
 Date: 1.5.2024
 """
 

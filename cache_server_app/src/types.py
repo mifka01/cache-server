@@ -2,13 +2,14 @@
 """
 types
 
-Module containing custom type definitions for the cache server.
+Module containing custom type definitions for database
 
 Author: Radim Mifka
-Date: 1.5.2024
+
+Date: 3.4.2025
 """
 
-from typing import TypeAlias, Union
+from typing import TypeAlias
 
 
 BinaryCacheRow: TypeAlias = tuple[str, str, str, str, str, int, int]  # id, name, url, token, access, port, retention

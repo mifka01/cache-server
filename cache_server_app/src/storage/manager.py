@@ -1,16 +1,17 @@
 #!/usr/bin/env python3.12
 """
-binary_cache
+manager
 
-Module containing the StorageManager class.
+Abstraction above more possible storages for cache instance
 
-Author: Marek Križan, Radim Mifka
-Date: 1.5.2024
+Author: Radim Mifka
+
+Date: 3.4.2025
 """
 
 import uuid
 
-from typing import Dict, List, Literal, Optional, Tuple, Union, overload
+from typing import Dict, List, Literal, Optional, Tuple, overload
 from cache_server_app.src.storage.base import Storage
 from cache_server_app.src.database import CacheServerDatabase
 from cache_server_app.src.storage.factory import StorageFactory
@@ -79,7 +80,7 @@ class StorageManager:
     @overload
     def read(self, path: str) -> str: ...
 
-    def read(self, path: str, binary: bool = False) -> Union[str, bytes]:
+    def read(self, path: str, binary: bool = False) -> str | bytes:
         # TODO choose right storage
         return self.storages[0].read(path, binary)
 

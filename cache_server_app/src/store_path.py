@@ -5,6 +5,7 @@ store_path
 Module containing the StorePath class.
 
 Author: Marek Križan, Radim Mifka
+
 Date: 1.5.2024
 """
 

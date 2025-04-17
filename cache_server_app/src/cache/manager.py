@@ -1,5 +1,14 @@
+#!/usr/bin/env python3.12
+"""
+base
+
+Process manager for cache instances
+
+Author: Radim Mifka
+Date: 16.4.2025
+"""
+
 import multiprocessing
-from typing import Dict, Any
 import cache_server_app.src.config.base as config
 from cache_server_app.src.commands.cache import CacheCommands
 

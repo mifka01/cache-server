@@ -1,13 +1,14 @@
 #!/usr/bin/env python3.12
 """
-server Server command handlers.
-Author: Radim Mifka
-Date: 1.5.2024
+server
+
+Server command handlers.
+
+Author: Marek Križan, Radim Mifka
+Date: 30.3.2025
 """
+
 import asyncio
-import os
-import signal
-import subprocess
 import sys
 import threading
 from typing import Any

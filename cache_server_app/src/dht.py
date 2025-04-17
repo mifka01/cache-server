@@ -2,8 +2,11 @@
 """
 dht
 
+Abstraction over opendht library to create simple access for cache server
+
 Author: Radim Mifka
-Date: 1.5.2024
+
+Date: 16.4.2025
 """
 
 import opendht as dht
