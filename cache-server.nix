@@ -1,22 +1,36 @@
-{ lib
-, python312Packages
-}:
+{ lib, python312, callPackage, stdenv, cmake, pkg-config, cppunit }:
 
-python312Packages.buildPythonApplication rec {
+let
+  python = python312;
+
+  opendht = callPackage ./opendht.nix {
+    inherit python;
+  };
+
+  pythonPackages = python.pkgs;
+
+in
+pythonPackages.buildPythonApplication rec {
   pname = "cache-server";
   version = "1.0";
   pyproject = true;
-
   src = ./.;
 
   nativeBuildInputs = [
-    python312Packages.setuptools
+    pkg-config
+    cppunit
+    pythonPackages.setuptools
   ];
 
-  propagatedBuildInputs = [
-    python312Packages.pyjwt
-    python312Packages.websockets
-    python312Packages.ed25519
-    python312Packages.boto3
+  propagatedBuildInputs = with pythonPackages; [
+    pyjwt
+    websockets
+    ed25519
+    boto3
+    pyyaml
+    mypy
+    cython
+    opendht
   ];
 }
+
