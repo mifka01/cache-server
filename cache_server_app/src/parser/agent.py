@@ -1,3 +1,14 @@
+#!/usr/bin/env python3.12
+"""
+agent
+
+Parser for agent arguments
+
+Author: Radim Mifka
+
+Date: 21.12.2024
+"""
+
 from argparse import ArgumentParser, _SubParsersAction
 
 

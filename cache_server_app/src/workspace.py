@@ -5,6 +5,7 @@ workspace
 Module containing the Workspace class.
 
 Author: Marek Križan
+
 Date: 1.5.2024
 """
 

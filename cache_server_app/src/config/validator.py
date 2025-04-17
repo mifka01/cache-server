@@ -2,10 +2,9 @@
 """
 Validator for the cache-server application configuration.
 
-This module validates the configuration.
-
 Author: Radim Mifka
-Date: 02.04.2025
+
+Date: 3.4.2025
 """
 
 from typing import Dict, List, Tuple

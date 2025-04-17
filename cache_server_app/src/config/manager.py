@@ -1,12 +1,12 @@
 #!/usr/bin/env python3.12
 """
+manager
+
 Configuration manager for the cache-server application.
 
-This module handles loading and applying configurations from the config file,
-ensuring that resources are only created or updated when necessary.
-
 Author: Radim Mifka
-Date: 02.04.2025
+
+Date: 3.4.2025
 """
 
 from typing import Dict, Set, Optional, List, Tuple

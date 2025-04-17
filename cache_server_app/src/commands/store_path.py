@@ -4,8 +4,8 @@ store_path
 
 Store path command handlers.
 
-Author: Radim Mifka
-Date: 1.5.2024
+Author: Marek Križan, Radim Mifka
+Date: 30.3.2025
 """
 
 import os

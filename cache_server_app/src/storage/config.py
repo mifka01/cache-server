@@ -5,6 +5,7 @@ config
 This module contains the configuration validation for storage types.
 
 Author: Radim Mifka
+
 Date: 5.12.2024
 """
 

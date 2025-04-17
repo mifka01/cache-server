@@ -1,5 +1,15 @@
+#!/usr/bin/env python3.12
+"""
+factory
+
+This module provides factory for storages
+
+Author: Radim Mifka
+
+Date: 5.12.2024
+"""
+
 import importlib
-import uuid
 
 from cache_server_app.src.storage.base import Storage
 from cache_server_app.src.storage.type import StorageType

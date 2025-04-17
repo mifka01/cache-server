@@ -1,3 +1,14 @@
+#!/usr/bin/env python3.12
+"""
+type
+
+Enum for storage type
+
+Author: Radim Mifka
+
+Date: 3.4.2025
+"""
+
 from enum import StrEnum
 
 

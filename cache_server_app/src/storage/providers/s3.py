@@ -4,11 +4,12 @@ s3
 This module contains the implementation of the S3Storage class, which is a subclass of the Storage class.
 
 Author: Radim Mifka
+
 Date: 5.12.2024
 """
 
 import os
-from typing import Dict, Union
+from typing import Dict
 
 import boto3
 from botocore.exceptions import ClientError
@@ -72,7 +73,7 @@ class S3Storage(Storage):
         except ClientError as e:
             raise IOError(f"Error removing file {path}: {e}")
 
-    def read(self, path: str, binary: bool = False) -> Union[str, bytes]:
+    def read(self, path: str, binary: bool = False) -> str | bytes:
         full_path = os.path.join(self.root, path).lstrip("/")
 
         try:
@@ -112,7 +113,7 @@ class S3Storage(Storage):
         except ClientError as e:
             raise IOError(f"Error listing files: {e}")
 
-    def find(self, name: str, strict: bool = False) -> Union[str, None]:
+    def find(self, name: str, strict: bool = False) -> str | None:
         try:
             response = self.s3_client.list_objects_v2(
                 Bucket=self.bucket, Prefix=self.root

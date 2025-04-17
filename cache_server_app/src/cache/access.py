@@ -1,3 +1,13 @@
+#!/usr/bin/env python3.12
+"""
+access
+
+Enum for cache access type
+
+Author: Radim Mifka
+Date: 3.4.2025
+"""
+
 from enum import Enum
 from typing import List
 

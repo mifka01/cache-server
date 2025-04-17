@@ -5,7 +5,8 @@ registry
 Module for automatic storage class registration.
 
 Author: Radim Mifka
-Date: 1.5.2024
+
+Date: 3.4.2025
 """
 
 from typing import Dict, Type

@@ -4,8 +4,8 @@ registry
 
 Command registry for routing commands to appropriate handlers.
 
-Author: Radim Mifka
-Date: 1.5.2024
+Author: Marek Križan, Radim Mifka
+Date: 30.3.2025
 """
 
 from typing import Any

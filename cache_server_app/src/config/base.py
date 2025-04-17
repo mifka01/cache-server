@@ -1,10 +1,14 @@
 #!/usr/bin/env python3.12
 """
+base
+
 Configuration loader for the cache-server application.
 
 Author: Radim Mifka
-Date: 1.5.2024
+
+Date: 16.4.2025
 """
+
 import os
 import sys
 from yaml import safe_load

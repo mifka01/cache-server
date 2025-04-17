@@ -4,12 +4,13 @@ base
 This module provides an abstract class for storage objects.
 
 Author: Radim Mifka
+
 Date: 5.12.2024
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional, Tuple, Union, overload
+from typing import Dict, List, Literal, Optional, overload
 
 
 @dataclass
@@ -103,7 +104,7 @@ class Storage(ABC):
     def read(self, path: str) -> str: ...
 
     @abstractmethod
-    def read(self, path: str, binary: bool = False) -> Union[str, bytes]:
+    def read(self, path: str, binary: bool = False) -> str | bytes:
         """Read the contents of a file.
 
         Parameters:
@@ -111,7 +112,7 @@ class Storage(ABC):
             binary (bool): If True, the file is read in binary mode. Defaults to False.
 
         Returns:
-            Union[str, bytes]: The contents of the file.
+            str | bytes: The contents of the file.
         """
         raise NotImplementedError
 

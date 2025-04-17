@@ -5,7 +5,8 @@ api
 Module containing classes for HTTP and WebSocket APIs.
 
 Author: Marek Križan, Radim Mifka
-Date: 1.5.2024
+
+Date: 17.5.2025
 """
 
 import asyncio

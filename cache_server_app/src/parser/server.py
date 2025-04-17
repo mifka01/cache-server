@@ -1,3 +1,14 @@
+#!/usr/bin/env python3.12
+"""
+server
+
+Parser for server arguments
+
+Author: Radim Mifka
+
+Date: 21.12.2024
+"""
+
 from argparse import ArgumentParser, _SubParsersAction
 
 from cache_server_app.src.parser.hidden import get_hidden_parser
