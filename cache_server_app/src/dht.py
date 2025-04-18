@@ -87,8 +87,8 @@ class DHT:
             key: Key to put
             value: Value to put
         """
-        key = dht.InfoHash(key)
-        self.node.put(key, dht.Value(value))
+        key = dht.InfoHash(key.encode())
+        self.node.put(key, dht.Value(value.encode()))
 
     def get(self, key: str) -> str:
         """
