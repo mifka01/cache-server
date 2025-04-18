@@ -5,6 +5,7 @@ access
 Enum for cache access type
 
 Author: Radim Mifka
+
 Date: 3.4.2025
 """
 
