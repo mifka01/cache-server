@@ -64,7 +64,7 @@ class StorePath:
 
     @staticmethod
     def get(cache_name: str, store_hash: str = "", file_hash: str = ""):
-        cache = BinaryCache.get(cache_name)
+        cache = BinaryCache.get(name=cache_name)
         if not cache:
             return None
 
