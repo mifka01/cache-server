@@ -41,14 +41,7 @@ class DHT:
         self.node.run(port=config.dht_port)
         print(f"DHT node started on port {config.dht_port}")
 
-        # Attempt to bootstrap to the specified host and port
-        # TODO make this check better
-        should_bootstrap = (
-            config.dht_bootstrap_host != config.server_hostname or
-            config.dht_bootstrap_port != config.dht_port
-        )
-
-        if should_bootstrap:
+        if config.should_bootstrap:
             print(f"Trying to bootstrap to {config.dht_bootstrap_host}:{config.dht_bootstrap_port}")
             success = self._bootstrap(config.dht_bootstrap_host, config.dht_bootstrap_port)
             if not success:

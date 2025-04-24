@@ -41,6 +41,11 @@ try:
     default_port = int(server_config.get("default-port", 8080))
     default_storage = server_config.get("default-storage", "local")
 
+    should_bootstrap = (
+        dht_bootstrap_host != server_hostname or
+        dht_bootstrap_port != dht_port
+    )
+
     caches = config.get("caches", [])
     for cache in caches:
         if "storages" not in cache:
