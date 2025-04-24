@@ -62,7 +62,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
 
-            if cache.access == CacheAccess.PRIVATE.value:
+            if cache.is_private():
                 if self.headers["Authorization"].split()[1] != cache.token:
                     self.send_response(401)
                     self.end_headers()
@@ -216,7 +216,8 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                     narinfo_create["cFileHash"], os.path.splitext(filename)[1]
                 )
 
-                self.server.dht.put(narinfo_create["cStoreHash"], cache.id)
+                if cache.is_public():
+                    self.server.dht.put(narinfo_create["cStoreHash"], cache.id)
 
                 storage.rename(filename, new_filename)
 
