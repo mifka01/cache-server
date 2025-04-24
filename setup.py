@@ -7,6 +7,7 @@ setup(
     packages=[
         "cache_server_app",
         "cache_server_app/src",
+        "cache_server_app/src/api",
         "cache_server_app/src/cache",
         "cache_server_app/src/commands",
         "cache_server_app/src/config",
