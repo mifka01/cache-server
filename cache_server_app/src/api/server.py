@@ -114,10 +114,9 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             content_length = int(self.headers["Content-Length"])
             body = json.loads(self.rfile.read(content_length).decode("utf-8"))
 
+            # to make sure that dht put is non-blocking
             def done(ok, _):
-                if ok:
-                    print("DHT put successful")
-                else:
+                if not ok:
                     print("ERROR: DHT put failed")
 
             if "key" in body and "value" in body:
