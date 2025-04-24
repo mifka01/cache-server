@@ -12,21 +12,21 @@ Date: 17.5.2025
 import base64
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Tuple, Any
 
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.cache.remote import RemoteCacheHelper
-from cache_server_app.src.cache.access import CacheAccess
 from cache_server_app.src.store_path import StorePath
 
 class HTTPBinaryCache(ThreadingHTTPServer):
-    def __init__(self, server_address, request_handler, cache: BinaryCache):
+    def __init__(self, server_address: Tuple[str, int], request_handler: type["BinaryCacheRequestHandler"], cache: BinaryCache) -> None:
         super().__init__(server_address, request_handler)
         self.cache = cache
         self.remote = RemoteCacheHelper(cache)
 
 class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.server: HTTPBinaryCache # type: ignore
 
@@ -47,18 +47,19 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
         # /nix-cache-info
         if m := re.match(r"^/nix-cache-info$", self.path):
-            response = "Priority: 30\nStoreDir: /nix/store\nWantMassQuery: 1\n".encode(
+            cache_info = "Priority: 30\nStoreDir: /nix/store\nWantMassQuery: 1\n".encode(
                 "utf-8"
             )
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(len(response)))
+            self.send_header("Content-Length", str(len(cache_info)))
             self.end_headers()
-            self.wfile.write(response)
+            self.wfile.write(cache_info)
 
         # /{storeHash}.narinfo
         elif m := re.match(r"^\/([a-z0-9]+)\.narinfo$", self.path):
             store_hash = m.group(1)
+            response : bytes | None = None
 
             path = StorePath.get(self.server.cache.name, store_hash=m.group(1))
             if path:

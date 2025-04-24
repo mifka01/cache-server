@@ -10,7 +10,7 @@ Date: 30.3.2025
 
 import sys
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 import jwt
 
@@ -69,7 +69,7 @@ class AgentCommands(BaseCommand):
 
     def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
         """Execute the specified agent command."""
-        commands = {
+        commands: dict[str, Callable[..., None]] = {
             "add": self.add,
             "remove": self.remove,
             "list": self.list,

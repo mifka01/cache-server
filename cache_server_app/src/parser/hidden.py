@@ -9,11 +9,11 @@ Author: Radim Mifka
 Date: 21.12.2024
 """
 
-from argparse import ArgumentParser, _SubParsersAction
+from argparse import _SubParsersAction
 
 
 # hidden-start
-def get_hidden_parser(subparsers: _SubParsersAction) -> ArgumentParser:
+def add_hidden_parser(subparsers: _SubParsersAction) -> None:
     start_parser = subparsers.add_parser("hidden-start")
 
     start_subparser = start_parser.add_subparsers(dest="start_command")
@@ -28,4 +28,3 @@ def get_hidden_parser(subparsers: _SubParsersAction) -> ArgumentParser:
     start_cache_parser.add_argument("name", type=str, help="Binary cache name")
     start_cache_parser.add_argument("port", type=int, help="Binary cache port")
 
-    return start_parser

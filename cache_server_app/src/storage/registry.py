@@ -9,7 +9,7 @@ Author: Radim Mifka
 Date: 3.4.2025
 """
 
-from typing import Dict, Type
+from typing import Dict, Type, Callable
 
 from cache_server_app.src.storage.base import Storage
 from cache_server_app.src.storage.type import StorageType
@@ -17,13 +17,13 @@ from cache_server_app.src.storage.type import StorageType
 
 class StorageRegistry:
     """Registry for storage classes."""
-    
+
     _classes: Dict[StorageType, Type[Storage]] = {}
 
     @classmethod
-    def register(cls, storage_type: StorageType):
+    def register(cls, storage_type: StorageType) -> Callable:
         """Decorator to register a storage class."""
-        def decorator(storage_class: Type[Storage]):
+        def decorator(storage_class: Type[Storage]) -> Type[Storage]:
             cls._classes[storage_type] = storage_class
             return storage_class
         return decorator

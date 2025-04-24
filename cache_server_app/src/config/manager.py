@@ -17,6 +17,8 @@ from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.cache.base import BinaryCache, CacheAccess
 from cache_server_app.src.config.validator import ConfigValidator
+from cache_server_app.src.workspace import Workspace
+from cache_server_app.src.agent import Agent
 
 
 @dataclass
@@ -31,7 +33,7 @@ class ResourceState:
 class ConfigManager:
     """Manages loading and applying configurations from the config file."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.registry = CommandRegistry()
         self.existing_caches: Set[str] = set()
         self.existing_storages: Set[str] = set()
@@ -164,34 +166,34 @@ class ConfigManager:
 
     def _get_workspace_state(self, name: str, workspace_config: Dict) -> ResourceState:
         """Get the current state of a workspace."""
-        existing_workspace = self.registry.execute("workspace", "get", name, silent=True)
+        existing_workspace = Workspace.get(name=name)
         if not existing_workspace:
             return ResourceState(name=name, exists=False)
 
         cache_name = workspace_config.get("cache")
-        needs_update = existing_workspace.cache_name != cache_name
+        needs_update = existing_workspace.cache != cache_name
 
         return ResourceState(
             name=name,
             exists=True,
             needs_update=needs_update,
-            current_config={"cache_name": cache_name}
+            current_config={"cache": cache_name}
         )
 
     def _get_agent_state(self, name: str, agent_config: Dict) -> ResourceState:
         """Get the current state of an agent."""
-        existing_agent = self.registry.execute("agent", "get", name, silent=True)
+        existing_agent = Agent.get(name=name)
         if not existing_agent:
             return ResourceState(name=name, exists=False)
 
         workspace_name = agent_config.get("workspace")
-        needs_update = existing_agent.workspace_name != workspace_name
+        needs_update = existing_agent.workspace!= workspace_name
 
         return ResourceState(
             name=name,
             exists=True,
             needs_update=needs_update,
-            current_config={"workspace_name": workspace_name}
+            current_config={"workspace": workspace_name}
         )
 
     def _get_storage_config(self, storage: Dict, storage_type:str) -> Dict[str, str]:

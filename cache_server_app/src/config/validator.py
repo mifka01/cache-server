@@ -18,9 +18,9 @@ from cache_server_app.src.cache.base import CacheAccess
 class ConfigValidator:
     """Manages loading and applying configurations from the config file."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.registry = CommandRegistry()
-        self.errors = []
+        self.errors: List[str] = []
 
     def validate_configuration(self) -> Tuple[bool, List[str]]:
         """
@@ -29,8 +29,6 @@ class ConfigValidator:
         Returns:
             Tuple of (is_valid, errors)
         """
-        self.errors = []
-
         self._validate_server(config.server_config)
         self._validate_caches(config.caches)
         self._validate_workspaces(config.workspaces, config.caches)
@@ -41,10 +39,6 @@ class ConfigValidator:
 
     def _validate_server(self, server: Dict) -> None:
         """Validate server configurations."""
-        if not isinstance(server, dict):
-            self.errors.append("'server' must be an object")
-            return
-
         required_fields = ["cache-dir", "database", "hostname", "server-port", "deploy-port"]
 
         for field in required_fields:
@@ -64,17 +58,9 @@ class ConfigValidator:
 
     def _validate_caches(self, caches: List[Dict]) -> None:
         """Validate cache configurations."""
-        if not isinstance(caches, list):
-            self.errors.append("'caches' must be a list")
-            return
-
         cache_names = set()
 
         for i, cache in enumerate(caches):
-            if not isinstance(cache, dict):
-                self.errors.append(f"Cache at index {i} must be an object")
-                continue
-
             if "name" not in cache:
                 self.errors.append(f"Cache at index {i} is missing required field 'name'")
                 continue
@@ -104,17 +90,9 @@ class ConfigValidator:
 
     def _validate_storages(self, storages: List[Dict], cache_name: str) -> None:
         """Validate storage configurations for a cache."""
-        if not isinstance(storages, list):
-            self.errors.append(f"Cache '{cache_name}': 'storages' must be a list")
-            return
-
         storage_names = set()
 
         for i, storage in enumerate(storages):
-            if not isinstance(storage, dict):
-                self.errors.append(f"Cache '{cache_name}': Storage at index {i} must be an object")
-                continue
-
             if "name" not in storage:
                 self.errors.append(f"Cache '{cache_name}': Storage at index {i} is missing required field 'name'")
                 continue
@@ -147,18 +125,10 @@ class ConfigValidator:
 
     def _validate_workspaces(self, workspaces: List[Dict], caches: List[Dict]) -> None:
         """Validate workspace configurations."""
-        if not isinstance(workspaces, list):
-            self.errors.append("'workspaces' must be a list")
-            return
-
         workspace_names = set()
         cache_names = {cache["name"] for cache in caches if isinstance(cache, dict) and "name" in cache}
 
         for i, workspace in enumerate(workspaces):
-            if not isinstance(workspace, dict):
-                self.errors.append(f"Workspace at index {i} must be an object")
-                continue
-
             if "name" not in workspace:
                 self.errors.append(f"Workspace at index {i} is missing required field 'name'")
                 continue
@@ -178,18 +148,10 @@ class ConfigValidator:
 
     def _validate_agents(self, agents: List[Dict], workspaces: List[Dict]) -> None:
         """Validate agent configurations."""
-        if not isinstance(agents, list):
-            self.errors.append("'agents' must be a list")
-            return
-
         agent_names = set()
         workspace_names = {workspace["name"] for workspace in workspaces if isinstance(workspace, dict) and "name" in workspace}
 
         for i, agent in enumerate(agents):
-            if not isinstance(agent, dict):
-                self.errors.append(f"Agent at index {i} must be an object")
-                continue
-
             if "name" not in agent:
                 self.errors.append(f"Agent at index {i} is missing required field 'name'")
                 continue

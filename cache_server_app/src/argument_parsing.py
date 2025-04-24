@@ -15,7 +15,7 @@ from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.parser.base import parse
 
 
-def handle_arguments(argv) -> None:
+def handle_arguments(argv: list[str]) -> None:
     """Handle command line arguments."""
     arguments = parse(argv)
     registry = CommandRegistry()

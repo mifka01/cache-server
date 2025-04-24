@@ -10,6 +10,7 @@ Date: 5.12.2024
 """
 
 import importlib
+from typing import Type, Any
 
 from cache_server_app.src.storage.base import Storage
 from cache_server_app.src.storage.type import StorageType
@@ -17,7 +18,7 @@ from cache_server_app.src.storage.type import StorageType
 
 class StorageFactory:
     @staticmethod
-    def create_storage(id:str, name: str, type: str, *args) -> Storage:
+    def create_storage(id:str, name: str, type: str, *args: Any) -> Storage:
         try:
             storage_type = StorageType(type.lower())
 
@@ -27,7 +28,7 @@ class StorageFactory:
             class_name = f"{storage_type.value.capitalize()}Storage"
             module = importlib.import_module(module_name)
 
-            storage_class = getattr(module, class_name)
+            storage_class: Type[Storage] = getattr(module, class_name)
 
             return storage_class(id, name, type, *args)
 

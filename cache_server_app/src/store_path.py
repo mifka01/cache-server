@@ -17,6 +17,7 @@ import ed25519
 
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.database import CacheServerDatabase
+from typing import Optional
 
 
 class StorePath:
@@ -49,7 +50,7 @@ class StorePath:
         deriver: str,
         references: list[str],
         storage: Storage
-    ):
+    ) -> None:
         self.id = id
         self.database = CacheServerDatabase()
         self.store_hash = store_hash
@@ -63,7 +64,7 @@ class StorePath:
         self.storage = storage
 
     @staticmethod
-    def get(cache_name: str, store_hash: str = "", file_hash: str = ""):
+    def get(cache_name: str, store_hash: str = "", file_hash: str = "") -> Optional["StorePath"]:
         cache = BinaryCache.get(name=cache_name)
         if not cache:
             return None
@@ -95,6 +96,7 @@ class StorePath:
         if file_name is None:
             raise FileNotFoundError(f"File with hash {self.file_hash} not found.")
 
+        # system is hardcoded to "x86_64-linux" ?
         narinfo_dict = f"""StorePath: /nix/store/{self.store_hash}-{self.store_suffix}
 URL: nar/{self.file_hash}.nar{os.path.splitext(file_name)[1]}
 Compression: {os.path.splitext(file_name)[1][1:]}

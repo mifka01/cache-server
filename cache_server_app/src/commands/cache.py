@@ -12,7 +12,7 @@ import os
 import shutil
 import sys
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 import signal
 
 import jwt
@@ -217,7 +217,8 @@ class CacheCommands(BaseCommand):
 
     def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
         """Execute the specified cache command."""
-        commands = {
+
+        commands: dict[str, Callable[..., None]] = {
             "create": self.create,
             "start": self.start,
             "stop": self.stop,

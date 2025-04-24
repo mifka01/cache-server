@@ -15,6 +15,7 @@ let
     boto3
     pyyaml
     mypy
+    types-pyyaml
   ]);
 in
 pkgs.mkShell {

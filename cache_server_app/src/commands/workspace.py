@@ -10,7 +10,7 @@ Date: 30.3.2025
 
 import sys
 import uuid
-from typing import Any
+from typing import Any, Callable
 
 import jwt
 
@@ -80,7 +80,7 @@ class WorkspaceCommands(BaseCommand):
 
     def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
         """Execute the specified workspace command."""
-        commands = {
+        commands: dict[str, Callable[..., None]] = {
             "create": self.create,
             "delete": self.delete,
             "list": self.list,

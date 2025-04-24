@@ -20,7 +20,7 @@ from cache_server_app.src.commands.workspace import WorkspaceCommands
 class CommandRegistry:
     """Registry for routing commands to appropriate handlers."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.commands = {
             "server": ServerCommands(),
             "cache": CacheCommands(),
