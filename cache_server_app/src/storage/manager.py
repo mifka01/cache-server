@@ -67,9 +67,17 @@ class StorageManager:
                 for key, value in config.items():
                     self.database.insert_storage_config(storage.id, key, value)
 
+    def _choose_storage(self) -> Storage:
+        # TODO implement choosing right storage
+        # for now just return first storage
+        if not self.storages:
+            raise ValueError("No storage available")
+
+        return self.storages[0]
+
     def new_file(self, path: str, data: bytes = b"") -> None:
-        # TODO choose right storage
-        self.storages[0].new_file(path, data)
+        storage = self._choose_storage()
+        storage.new_file(path, data)
 
     @overload
     def read(self, path: str, binary: Literal[True]) -> bytes: ...
@@ -81,11 +89,7 @@ class StorageManager:
     def read(self, path: str) -> str: ...
 
     def read(self, path: str, binary: bool = False) -> str | bytes:
-        if not self.storages:
-            raise ValueError("No storage available")
-
-        # TODO choose right storage
-        storage = self.storages[0]
+        storage = self._choose_storage()
 
         # for mypy to understand the overload
         if binary:
@@ -101,14 +105,14 @@ class StorageManager:
         return None
 
     def save(self, path: str, data: bytes) -> None:
-        # TODO choose right storage
-        self.storages[0].save(path, data)
+        storage = self._choose_storage()
+        storage.save(path, data)
 
     def remove(self, path: str) -> None:
-        # TODO choose right storage
-        self.storages[0].remove(path)
+        storage = self._choose_storage()
+        storage.remove(path)
 
     def rename(self, path: str, new_path: str) -> None:
-        # TODO choose right storage
-        self.storages[0].rename(path, new_path)
+        storage = self._choose_storage()
+        storage.rename(path, new_path)
 

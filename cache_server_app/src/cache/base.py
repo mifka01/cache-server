@@ -149,7 +149,6 @@ class BinaryCache:
         return {
             "cacheName": self.name,
             "isPublic": self.is_public(),
-            # !TODO: CHECK THIS
             "publicKey": public_key.split(":")[1],
         }
 
