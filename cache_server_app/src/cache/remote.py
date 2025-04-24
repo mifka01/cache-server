@@ -2,14 +2,16 @@ import json
 import urllib.request
 import urllib.error
 
+from cache_server_app.src.cache.base import BinaryCache
+
 class RemoteCacheHelper:
     """Utility class for remote cache operations."""
 
-    def __init__(self, cache):
+    def __init__(self, cache: BinaryCache) -> None:
         self.cache = cache
-        self.cached_paths = {}
+        self.cached_paths: dict[str, str] = {}
 
-    def get_remote_cache_url(self, key_hash):
+    def get_remote_cache_url(self, key_hash: str) -> str | None:
         """
         Lookup a remote cache URL from DHT using the provided hash.
         Returns the remote cache URL or None if not found.
@@ -29,7 +31,7 @@ class RemoteCacheHelper:
             print(f"ERROR: Invalid JSON in remote cache data for {key_hash}")
             return None
 
-    def fetch_and_process_remote_narinfo(self, store_hash, remote_cache_url):
+    def fetch_and_process_remote_narinfo(self, store_hash: str, remote_cache_url: str) -> tuple[bytes | None, int]:
         """Fetch narinfo from remote cache and process it."""
         try:
             remote_url = f"{remote_cache_url}/{store_hash}.narinfo"
@@ -40,7 +42,7 @@ class RemoteCacheHelper:
                 narinfo_data = resp.read()
                 narinfo_dict = self.cache.sign(narinfo_data)
 
-                file_url = narinfo_dict.get("URL")
+                file_url: str = narinfo_dict.get("URL") # type: ignore
                 if file_url:
                     self.cached_paths[file_url] = remote_cache_url
 
@@ -64,7 +66,7 @@ class RemoteCacheHelper:
             print(f"ERROR: Unexpected error fetching narinfo: {e}")
             return None, 500
 
-    def fetch_remote_nar_file(self, file_hash, compression, remote_cache_url):
+    def fetch_remote_nar_file(self, file_hash: str, compression: str, remote_cache_url: str) -> tuple[bytes | None, int]:
         """Fetch nar file from remote cache."""
         nar_path = f"nar/{file_hash}.nar.{compression}"
         try:

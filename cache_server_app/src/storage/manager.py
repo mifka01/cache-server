@@ -18,7 +18,7 @@ from cache_server_app.src.storage.factory import StorageFactory
 from cache_server_app.src.types import StorePathRow
 
 class StorageManager:
-    def __init__(self, cache_id: str, storages: List[Storage], database: Optional[CacheServerDatabase] = None):
+    def __init__(self, cache_id: str, storages: List[Storage], database: Optional[CacheServerDatabase] = None) -> None:
         self.cache_id = cache_id
         self.storages = storages
         self.database = database or CacheServerDatabase()
@@ -43,7 +43,7 @@ class StorageManager:
         storage_ids = [storage.id for storage in self.storages]
         return self.database.get_store_path_row(storage_ids, store_hash, file_hash)
 
-    def add_storage(self, name: str, type: str, config: dict, cache_dir: str):
+    def add_storage(self, name: str, type: str, config: dict, cache_dir: str) -> None:
         id = str(uuid.uuid1())
         storage = StorageFactory.create_storage(id, name, type, config, cache_dir)
 
@@ -81,8 +81,17 @@ class StorageManager:
     def read(self, path: str) -> str: ...
 
     def read(self, path: str, binary: bool = False) -> str | bytes:
+        if not self.storages:
+            raise ValueError("No storage available")
+
         # TODO choose right storage
-        return self.storages[0].read(path, binary)
+        storage = self.storages[0]
+
+        # for mypy to understand the overload
+        if binary:
+            return storage.read(path, True)
+        else:
+            return storage.read(path, False)
 
     def find(self, path: str) -> Optional[Tuple[str, Storage]]:
         for storage in self.storages:

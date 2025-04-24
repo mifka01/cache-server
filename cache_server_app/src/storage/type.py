@@ -17,9 +17,9 @@ class StorageType(StrEnum):
     S3 = "s3"
 
     @classmethod
-    def list(cls):
+    def list(cls) -> list[str]:
         return [c.value for c in cls]
 
     @classmethod
-    def str(cls):
-        (", ".join(cls.list()))
+    def str(cls) -> str:
+        return ", ".join(cls.list())

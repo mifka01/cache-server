@@ -21,11 +21,11 @@ from cache_server_app.src.dht.node import DHT
 class ServerCommands(BaseCommand):
     """Handles all server-related commands."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.process_manager = CacheManager()
-        self.ws_handler = None
-        self.ws_thread = None
+        self.ws_handler: WebSocketConnectionHandler | None = None
+        self.ws_thread: threading.Thread | None = None
         # Create an event to signal thread termination
         self.stop_event = threading.Event()
         self.dht = DHT.get_instance()
@@ -83,7 +83,7 @@ class ServerCommands(BaseCommand):
 
     def _start_workspace(self, ws_handler: WebSocketConnectionHandler, stop_event: threading.Event) -> None:
         """Start the WebSocket handler with a stop event for clean shutdown."""
-        async def run_with_cancellation():
+        async def run_with_cancellation() -> None:
             ws_task = asyncio.create_task(ws_handler.run())
 
             while not stop_event.is_set():

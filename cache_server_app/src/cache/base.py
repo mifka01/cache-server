@@ -13,7 +13,7 @@ import json
 import os
 import time
 from typing import Dict, List, Optional
-from cache_server_app.src.types import StorePathRow
+from cache_server_app.src.types import NarInfoDict, StorePathRow
 
 import ed25519
 
@@ -97,10 +97,10 @@ class BinaryCache:
         )
 
     def is_public(self) -> bool:
-        return self.access == CacheAccess.PUBLIC.value
+        return self.access == CacheAccess.PUBLIC
 
     def is_private(self) -> bool:
-        return self.access == CacheAccess.PRIVATE.value
+        return self.access == CacheAccess.PRIVATE
 
     def save(self) -> None:
         self.database.insert_binary_cache(
@@ -222,7 +222,7 @@ class BinaryCache:
                 os.remove(file)
 
 
-    def fingerprint(self, references, store_path, nar_hash, nar_size) -> bytes:
+    def fingerprint(self, references: List[str], store_path: str, nar_hash: str, nar_size: str) -> bytes:
 
         refs = ",".join(["/nix/store/" + ref for ref in references])
 
@@ -231,16 +231,17 @@ class BinaryCache:
         )
         return output
 
-    def _parse_narinfo_text(self, narinfo_str: str) -> dict:
+    def _parse_narinfo_text(self, narinfo_str: str) -> Optional[NarInfoDict]:
         """Parse narinfo text into a dictionary of key-value pairs.
 
         Args:
             narinfo_str: Raw narinfo string content
 
         Returns:
-            Dictionary of narinfo fields
+            Dictionary of narinfo fields or None if required fields are missing
         """
-        result = {}
+        result: NarInfoDict = {}
+
         for line in narinfo_str.strip().splitlines():
             if not line or line.startswith("Sig:"):
                 continue
@@ -255,9 +256,13 @@ class BinaryCache:
             except ValueError:
                 continue
 
-        return result
+        if all(result[key] for key in result):
+            return result
 
-    def sign(self, narinfo: bytes) -> Dict[str, str]:
+        return None
+
+
+    def sign(self, narinfo: bytes) -> NarInfoDict:
         """Sign narinfo content and return the complete signed narinfo.
 
         Args:
@@ -272,12 +277,20 @@ class BinaryCache:
 
 
         narinfo_dict = self._parse_narinfo_text(narinfo.decode())
+        if not narinfo_dict:
+            raise ValueError("Invalid narinfo content")
+
+        references: List[str] = narinfo_dict.get("References") # type: ignore
+        store_path: str = narinfo_dict.get("StorePath") # type: ignore
+        nar_hash: str = narinfo_dict.get("NarHash") # type: ignore
+        nar_size: str = narinfo_dict.get("NarSize") # type: ignore
+
 
         fingerprint = self.fingerprint(
-            narinfo_dict.get("References"),
-            narinfo_dict.get("StorePath"),
-            narinfo_dict.get("NarHash"),
-            narinfo_dict.get("NarSize")
+            references,
+            store_path,
+            nar_hash,
+            nar_size,
         )
 
         sk = ed25519.SigningKey(base64.b64decode(content[1]))

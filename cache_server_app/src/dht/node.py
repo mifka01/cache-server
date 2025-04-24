@@ -11,7 +11,7 @@ Date: 16.4.2025
 
 import opendht as dht
 import cache_server_app.src.config.base as config
-from typing import List
+from typing import Callable, List
 
 class DHT:
     """
@@ -81,7 +81,7 @@ class DHT:
             print(f"ERROR: Exception during bootstrap: {e}")
             return False
 
-    def put(self, key: str, value: str, done_callback=None) -> None:
+    def put(self, key: str, value: str, done_callback: Callable | None =None) -> None:
         """
         Put a value into the DHT.
 
@@ -90,10 +90,10 @@ class DHT:
             value: Value to put
         """
 
-        key = dht.InfoHash.get(key)
-        self.node.put(key, dht.Value(value.encode()), done_cb=done_callback)
+        hash_key = dht.InfoHash.get(key)
+        self.node.put(hash_key, dht.Value(value.encode()), done_cb=done_callback)
 
-    def get(self, key: str, get_callback=None, done_callback=None) -> List[str] | None:
+    def get(self, key: str, get_callback: Callable | None =None, done_callback:Callable | None=None) -> List[str] | None:
         """
         Get a value from the DHT.
 
@@ -104,7 +104,9 @@ class DHT:
             str: Value associated with the key
         """
 
-        key = dht.InfoHash.get(key)
-        res = self.node.get(key, get_cb=get_callback, done_cb=done_callback)
+        hash_key = dht.InfoHash.get(key)
+        res = self.node.get(hash_key, get_cb=get_callback, done_cb=done_callback)
         if res:
             return [value.data.decode() for value in res]
+
+        return None

@@ -26,7 +26,7 @@ class CacheServerDatabase:
         database_file: database file specified in the cache-server configuration
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.database_file = config.database
 
     def create_database(self) -> None:
@@ -153,7 +153,7 @@ class CacheServerDatabase:
         params = (id, name, type, cache_id)
         self.execute_statement(statement, params)
 
-    def insert_storage_config(self, id: str, config_key: str, config_value: str):
+    def insert_storage_config(self, id: str, config_key: str, config_value: str) -> None:
         statement = """
             INSERT INTO storage_config(storage_id, config_key, config_value)
             VALUES (?, ?, ?)
@@ -220,7 +220,7 @@ class CacheServerDatabase:
             params = (name,)
         elif port:
             statement = "SELECT * FROM binary_cache WHERE port=?;"
-            params = (port,)
+            params = (str(port),)
         else:
             return None
 
@@ -229,7 +229,9 @@ class CacheServerDatabase:
         if not db_result:
             return None
 
-        return db_result[0]
+        row: BinaryCacheRow = db_result[0]
+
+        return row
 
     def get_cache_storages(self, id: str) -> List[StorageRow]:
         statement = """
@@ -315,7 +317,9 @@ class CacheServerDatabase:
         if not db_result:
             return None
 
-        return db_result[0]
+        row: AgentRow = db_result[0]
+
+        return row
 
     def get_workspace_agents(self, workspace_name: str) -> List[AgentRow]:
         statement = """
@@ -364,7 +368,9 @@ class CacheServerDatabase:
         if not db_result:
             return None
 
-        return db_result[0]
+        row: StorePathRow = db_result[0]
+
+        return row
 
     def insert_store_path(
         self,
@@ -444,7 +450,9 @@ class CacheServerDatabase:
         if not db_result:
             return None
 
-        return db_result[0]
+        row: WorkspaceRow = db_result[0]
+
+        return row
 
     def get_workspace_row_by_token(self, token: str) -> Optional[WorkspaceRow]:
         statement = """
@@ -456,7 +464,9 @@ class CacheServerDatabase:
         if not db_result:
             return None
 
-        return db_result[0]
+        row: WorkspaceRow = db_result[0]
+
+        return row
 
     def delete_all_workspace_agents(self, workspace_name: str) -> None:
         statement = """

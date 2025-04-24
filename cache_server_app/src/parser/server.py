@@ -9,22 +9,21 @@ Author: Radim Mifka
 Date: 21.12.2024
 """
 
-from argparse import ArgumentParser, _SubParsersAction
+from argparse import _SubParsersAction
 
-from cache_server_app.src.parser.hidden import get_hidden_parser
+from cache_server_app.src.parser.hidden import add_hidden_parser
 
 
-def get_server_parser(
+def add_server_parser(
     subparsers: _SubParsersAction,
-) -> ArgumentParser:
+) -> None:
 
-    server_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "listen", description="Start cache server", help="Start cache server"
     )
+
     subparsers.add_parser(
         "stop", description="Stop cache server", help="Stop cache server"
     )
 
-    get_hidden_parser(subparsers)
-
-    return server_parser
+    add_hidden_parser(subparsers)

@@ -25,6 +25,6 @@ class CacheAccess(Enum):
         return [access.value for access in cls]
 
     @classmethod
-    def str(cls):
+    def str(cls) -> str:
         return ", ".join(cls.list())
 

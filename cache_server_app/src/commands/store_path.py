@@ -10,7 +10,7 @@ Date: 30.3.2025
 
 import os
 import sys
-from typing import Any
+from typing import Any, Callable
 
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.commands.base import BaseCommand
@@ -64,13 +64,13 @@ class StorePathCommands(BaseCommand):
 
     def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
         """Execute the specified store path command."""
-        commands = {
+        commands: dict[str, Callable[..., None]] = {
             "list": self.list,
             "delete": self.delete,
             "info": self.info,
         }
-        
+
         if command not in commands:
             raise ValueError(f"Unknown store path command: {command}")
-            
+
         commands[command](*args, **kwargs) 

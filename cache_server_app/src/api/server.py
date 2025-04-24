@@ -18,15 +18,17 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import websockets
+from websockets.server import WebSocketServerProtocol
+from typing import Any, Tuple
 
 from cache_server_app.src.agent import Agent
 from cache_server_app.src.cache.base import BinaryCache
-from cache_server_app.src.cache.access import CacheAccess
 from cache_server_app.src.store_path import StorePath
 from cache_server_app.src.dht.node import DHT
 
+
 class HTTPCacheServer(ThreadingHTTPServer):
-    def __init__(self, server_address, request_handler, websocket_handler):
+    def __init__(self, server_address: Tuple[str, int], request_handler: type["CacheServerRequestHandler"], websocket_handler: "WebSocketConnectionHandler") -> None:
         self.websocket_handler = websocket_handler
         self.dht = DHT.get_instance()
         super().__init__(server_address, request_handler)
@@ -37,7 +39,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
     Class to handle cache-server HTTP requests.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.server: HTTPCacheServer # type: ignore
 
@@ -115,7 +117,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(content_length).decode("utf-8"))
 
             # to make sure that dht put is non-blocking
-            def done(ok, _):
+            def done(ok: bool, _: Any) -> None:
                 if not ok:
                     print("ERROR: DHT put failed")
 
@@ -314,12 +316,12 @@ class WebSocketConnectionHandler:
 
     def __init__(self, port: int):
         self.port = port
-        self.agents: dict[str, websockets.WebSocketServerProtocol] = {}
+        self.agents: dict[str, WebSocketServerProtocol] = {}
         self.deployments: dict[str, str] = {}
         self._stop_event = asyncio.Event()
 
 
-    async def agent_handler(self, websocket):
+    async def agent_handler(self, websocket: WebSocketServerProtocol) -> None:
         agent = Agent.get(websocket.request_headers["name"])
         if not agent:
             await websocket.close()
@@ -349,7 +351,7 @@ class WebSocketConnectionHandler:
 
             await websocket.send(message)
 
-            async for message in websocket:
+            async for message in websocket: # type: ignore
                 pass
 
         except websockets.exceptions.ConnectionClosed:
@@ -357,7 +359,7 @@ class WebSocketConnectionHandler:
         finally:
             del self.agents[agent.name]
 
-    async def deployment_handler(self, websocket):
+    async def deployment_handler(self, websocket: WebSocketServerProtocol) -> None:
         try:
             async for message in websocket:
                 message_dict = json.loads(message)
@@ -371,7 +373,7 @@ class WebSocketConnectionHandler:
         except websockets.exceptions.ConnectionClosed:
             pass
 
-    async def log_handler(self, websocket):
+    async def log_handler(self, websocket: WebSocketServerProtocol) -> None:
         if "name" not in websocket.request_headers.keys():
             await websocket.close()
         try:
@@ -385,7 +387,7 @@ class WebSocketConnectionHandler:
         except websockets.exceptions.ConnectionClosed:
             pass
 
-    async def handler(self, websocket, path):
+    async def handler(self, websocket: WebSocketServerProtocol, path: str) -> None:
         if "/ws" == path:
             await self.agent_handler(websocket)
         elif "/ws-deployment" == path:
@@ -421,11 +423,11 @@ class WebSocketConnectionHandler:
         )
         await websocket.send(message)
 
-    async def run(self):
+    async def run(self) -> None:
         async with websockets.serve(self.handler, "localhost", self.port):
             print(f"WebSocket server started on ws://localhost:{self.port}")
             await self._stop_event.wait()
 
-    def stop(self):
+    def stop(self) -> None:
         if not self._stop_event.is_set():
             self._stop_event.set()

@@ -19,18 +19,18 @@ class CacheManager:
     Maintains a registry of running cache processes and ensures proper cleanup.
     """
 
-    def __init__(self):
-        self.cache_processes = {}
+    def __init__(self) -> None:
+        self.cache_processes: dict[str, multiprocessing.Process] = {}
         self.running = False
         self.cache_commands = CacheCommands()
 
-    def run(self):
+    def run(self) -> None:
         for cache in config.caches:
             name = cache.get("name")
             if cache.get("enabled", True):
                 self.start_cache(name)
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop all running cache processes."""
         for name, process in self.cache_processes.items():
             if process.is_alive():
@@ -44,7 +44,7 @@ class CacheManager:
 
     def start_cache(self, name: str) -> bool:
         """Start a cache instance as a subprocess and track it."""
-        if name in self.cache_processes and self.cache_processes[name].poll() is None:
+        if name in self.cache_processes and self.cache_processes[name].is_alive():
             print(f"Cache {name} is already running.")
             return False
 
