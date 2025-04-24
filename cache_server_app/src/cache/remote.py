@@ -75,13 +75,12 @@ class RemoteCacheHelper:
 
                 nar_data = resp.read()
 
-                # Consider caching the file locally to avoid future redirects
+                # maybe try to save the file locally to avoid future redirects ???
                 # try:
                 #     self.cache.storage.save(f"{file_hash}.nar.{compression}", nar_data)
                 # except Exception as cache_err:
                 #     print(f"Failed to cache remote nar file locally: {cache_err}")
 
-                # Remove the mapping after successful fetch
                 if nar_path in self.cached_paths:
                     self.cached_paths.pop(nar_path)
 
