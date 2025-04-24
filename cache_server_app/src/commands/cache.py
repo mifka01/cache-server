@@ -90,7 +90,9 @@ class CacheCommands(BaseCommand):
             BinaryCacheRequestHandler,
             cache
         )
+
         print(f"Binary cache started http://localhost:{cache.port}")
+        cache.sync()
         try:
             server.serve_forever()
         except KeyboardInterrupt:

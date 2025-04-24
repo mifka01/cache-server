@@ -16,7 +16,7 @@ import cache_server_app.src.config.base as config
 from cache_server_app.src.api import CacheServerRequestHandler, HTTPCacheServer, WebSocketConnectionHandler
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.cache.manager import CacheManager
-from cache_server_app.src.dht import DHT
+from cache_server_app.src.dht.node import DHT
 
 class ServerCommands(BaseCommand):
     """Handles all server-related commands."""
@@ -44,7 +44,6 @@ class ServerCommands(BaseCommand):
 
         # pid_file = "/var/run/cache-server.pid"
         # self.save_pid(pid_file)
-        self.process_manager.run()
 
         self.stop_event.clear()
 
@@ -62,7 +61,9 @@ class ServerCommands(BaseCommand):
             self.ws_handler,
         )
         print(f"Server started http://localhost:{config.server_port}")
-        self.stop
+
+        self.process_manager.run()
+
         try:
             server.serve_forever()
         except KeyboardInterrupt:

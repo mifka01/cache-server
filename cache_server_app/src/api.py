@@ -16,18 +16,21 @@ import os
 import re
 import uuid
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import websockets
 
 from cache_server_app.src.agent import Agent
 from cache_server_app.src.cache.base import BinaryCache
+from cache_server_app.src.cache.remote import RemoteCacheHelper
 from cache_server_app.src.cache.access import CacheAccess
 from cache_server_app.src.store_path import StorePath
+from cache_server_app.src.dht.node import DHT
 
-class HTTPCacheServer(HTTPServer):
+class HTTPCacheServer(ThreadingHTTPServer):
     def __init__(self, server_address, request_handler, websocket_handler):
         self.websocket_handler = websocket_handler
+        self.dht = DHT.get_instance()
         super().__init__(server_address, request_handler)
 
 
@@ -41,7 +44,20 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
         self.server: HTTPCacheServer # type: ignore
 
     def do_GET(self) -> None:
-        if m := re.match(r"^/api/v1/cache/([a-z0-9]*)(\?)?", self.path):
+        # /api/v1/dht/get/{key}
+        if m := re.match(r"^/api/v1/dht/get/([^/]+)$", self.path):
+            key = m.group(1)
+
+            result = self.server.dht.get(key)
+            response = json.dumps({"value": result}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
+            return
+
+        elif m := re.match(r"^/api/v1/cache/([a-z0-9]*)(\?)?", self.path):
             cache = BinaryCache.get(name=m.group(1))
             if not cache:
                 self.send_response(400)
@@ -95,7 +111,27 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self) -> None:
-        if m := re.match(r"^/api/v1/cache/([a-z0-9]*)", self.path):
+        # /api/v1/dht/put
+        if self.path == "/api/v1/dht/put":
+            content_length = int(self.headers["Content-Length"])
+            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+
+            def done(ok, _):
+                if ok:
+                    print("DHT put successful")
+                else:
+                    print("ERROR: DHT put failed")
+
+            if "key" in body and "value" in body:
+                self.server.dht.put(body["key"], body["value"], done)
+                self.send_response(200)
+                self.end_headers()
+            else:
+                self.send_response(500)
+                self.end_headers()
+            return
+
+        elif m := re.match(r"^/api/v1/cache/([a-z0-9]*)", self.path):
 
             cache = BinaryCache.get(name=m.group(1))
 
@@ -137,13 +173,10 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                     "utf-8"
                 )
 
-                # new_file = os.path.join(
-                #     cache.cache_dir, "{}.nar.{}".format(id, m.group(1))
-                # )
-                # with open(new_file, "w") as nf:  # create new file for uploading nar
-                #     pass
+                filename = f"{id}.nar.{m.group(1)}"
+                cache.storage.new_file(filename)
 
-                cache.storage.new_file(f"{id}.nar.{m.group(1)}")
+                self.server.dht.put(filename, cache.id)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -159,10 +192,6 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 content_length = int(self.headers["Content-Length"])
                 body = json.loads(self.rfile.read(content_length).decode("utf-8"))
                 narinfo_create = body["narInfoCreate"]
-
-                # for f in os.listdir(cache.cache_dir):
-                #     if m.group(1) in f:
-                #         filename = f
 
                 name = m.group(1)
                 finding = cache.storage.find(name)
@@ -190,19 +219,9 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                     narinfo_create["cFileHash"], os.path.splitext(filename)[1]
                 )
 
-                storage.rename(filename, new_filename)
-                cache.dht.put(narinfo_create['cNarHash'], cache.id)
+                self.server.dht.put(narinfo_create["cStoreHash"], cache.id)
 
-                # os.rename(
-                #     path,
-                #     os.path.join(
-                #         cache.cache_dir,
-                #         "{}.nar{}".format(
-                #             body["narInfoCreate"]["cFileHash"],
-                #             os.path.splitext(filename)[1],
-                #         ),
-                #     ),
-                # )
+                storage.rename(filename, new_filename)
 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -213,12 +232,6 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 r"^/api/v1/cache/[a-z0-9]+/multipart-nar/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})/abort(\?)?",
                 self.path,
             ):
-
-                # filename = None
-                # for f in os.listdir(cache.cache_dir):
-                #     if m.group(1) in f:
-                #         filename = f
-
                 name = m.group(1)
                 findings = cache.storage.find(name)
 
@@ -291,10 +304,11 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 
-class HTTPBinaryCache(HTTPServer):
+class HTTPBinaryCache(ThreadingHTTPServer):
     def __init__(self, server_address, request_handler, cache: BinaryCache):
         super().__init__(server_address, request_handler)
         self.cache = cache
+        self.remote = RemoteCacheHelper(cache)
 
 class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
@@ -330,16 +344,35 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
         # /{storeHash}.narinfo
         elif m := re.match(r"^\/([a-z0-9]+)\.narinfo$", self.path):
+            store_hash = m.group(1)
 
             path = StorePath.get(self.server.cache.name, store_hash=m.group(1))
-            if not path:
+            if path:
+                response = path.get_narinfo().encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/x-nix-narinfo")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+                return
+
+            remote_cache_url = self.server.remote.get_remote_cache_url(store_hash)
+            if not remote_cache_url:
                 self.send_response(404)
                 self.end_headers()
                 return
 
-            response = path.get_narinfo().encode("utf-8")
+            response, status = self.server.remote.fetch_and_process_remote_narinfo(
+                store_hash,
+                remote_cache_url
+            )
 
-            self.send_response(200)
+            if not response:
+                self.send_response(status)
+                self.end_headers()
+                return
+
+            self.send_response(status)
             self.send_header("Content-Type", "text/x-nix-narinfo")
             self.send_header("Content-Length", str(len(response)))
             self.end_headers()
@@ -347,25 +380,45 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
         # /nar/{fileHash}.nar.{compression}
         elif m := re.match(r"^/nar/([a-z0-9]+)\.nar\.(xz|zst)$", self.path):
+            file_hash = m.group(1)
+            compression = m.group(2)
+            nar_path = f"nar/{file_hash}.nar.{compression}"
 
             path = StorePath.get(self.server.cache.name, file_hash=m.group(1))
-            if not path:
-                self.send_response(404)
+            if path:
+                nar_file = f"{file_hash}.nar.{compression}"
+                try:
+                    response = self.server.cache.storage.read(nar_file, binary=True)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/octet-stream")
+                    self.send_header("Content-Length", str(len(response)))
+                    self.end_headers()
+                    self.wfile.write(response)
+                    return
+                except Exception as e:
+                    print(f"Error reading local nar file: {e}")
+
+            if nar_path in self.server.remote.cached_paths:
+                remote_cache_url = self.server.remote.cached_paths[nar_path]
+                response, status = self.server.remote.fetch_remote_nar_file(
+                    file_hash,
+                    compression,
+                    remote_cache_url,
+                )
+
+                if not response:
+                    self.send_response(status)
+                    self.end_headers()
+                    return
+
+                self.send_response(status)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Length", str(len(response)))
                 self.end_headers()
+                self.wfile.write(response)
                 return
 
-            nar_file = "{}.nar.{}".format(m.group(1), m.group(2))
-
-            response = self.server.cache.storage.read(nar_file, binary=True)
-
-            self.send_response(200)
-            self.send_header("Content-Type", "text/x-nix-narinfo")
-            self.send_header("Content-Length", str(len(response)))
-            self.end_headers()
-
-            self.wfile.write(response)
-        else:
-            self.send_response(400)
+            self.send_response(404)
             self.end_headers()
 
     def do_PUT(self) -> None:
@@ -393,12 +446,10 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
             body = self.rfile.read(content_length)
 
-            storage.save(filename, body)
 
-            # with open(
-            #     os.path.join(self.server.cache.cache_dir, filename), "wb"
-            # ) as file:
-            #     file.write(body)
+            self.server.cache.dht.put(filename, self.server.cache.id)
+
+            storage.save(filename, body)
 
             self.send_response(201)
             self.send_header("Content-Location", "/")

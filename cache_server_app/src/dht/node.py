@@ -1,6 +1,6 @@
 #!/usr/bin/env python3.12
 """
-dht
+node
 
 Abstraction over opendht library to create simple access for cache server
 
@@ -11,11 +11,12 @@ Date: 16.4.2025
 
 import opendht as dht
 import cache_server_app.src.config.base as config
+from typing import List
 
 class DHT:
     """
     Class to represent a DHT node.
-    
+
     Attributes:
         node: DHT node instance
     """
@@ -41,6 +42,7 @@ class DHT:
         print(f"DHT node started on port {config.dht_port}")
 
         # Attempt to bootstrap to the specified host and port
+        # TODO make this check better
         should_bootstrap = (
             config.dht_bootstrap_host != config.server_hostname or
             config.dht_bootstrap_port != config.dht_port
@@ -79,7 +81,7 @@ class DHT:
             print(f"ERROR: Exception during bootstrap: {e}")
             return False
 
-    def put(self, key: str, value: str) -> None:
+    def put(self, key: str, value: str, done_callback=None) -> None:
         """
         Put a value into the DHT.
 
@@ -87,10 +89,10 @@ class DHT:
             key: Key to put
             value: Value to put
         """
-        key = dht.InfoHash(key.encode())
-        self.node.put(key, dht.Value(value.encode()))
+        key = dht.InfoHash.get(key)
+        self.node.put(key, dht.Value(value.encode()), done_cb=done_callback)
 
-    def get(self, key: str) -> str:
+    def get(self, key: str, get_callback=None, done_callback=None) -> List[str] | None:
         """
         Get a value from the DHT.
 
@@ -100,7 +102,8 @@ class DHT:
         Returns:
             str: Value associated with the key
         """
-        return self.node.get(key)
 
-
-
+        key = dht.InfoHash.get(key)
+        res = self.node.get(key, get_cb=get_callback, done_cb=done_callback)
+        if res:
+            return [value.data.decode() for value in res]
