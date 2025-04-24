@@ -18,7 +18,7 @@ import signal
 import jwt
 
 import cache_server_app.src.config.base as config
-from cache_server_app.src.api import BinaryCacheRequestHandler, HTTPBinaryCache
+from cache_server_app.src.api.cache import BinaryCacheRequestHandler, HTTPBinaryCache
 from cache_server_app.src.cache.base import BinaryCache, CacheAccess
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.storage.factory import StorageFactory
