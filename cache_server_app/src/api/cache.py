@@ -34,7 +34,7 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
     Class to handle binary cache HTTP requests.
     """
     def do_GET(self) -> None:
-        if self.server.cache.access == CacheAccess.PRIVATE.value:
+        if self.server.cache.is_private():
             if (
                 base64.b64decode(self.headers["Authorization"].split()[1]).decode(
                     "utf-8"
@@ -174,7 +174,7 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self) -> None:
 
-        if self.server.cache.access == CacheAccess.PRIVATE.value:
+        if self.server.cache.is_private():
             if (
                 base64.b64decode(self.headers["Authorization"].split()[1]).decode(
                     "utf-8"

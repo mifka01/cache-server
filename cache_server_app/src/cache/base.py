@@ -96,6 +96,12 @@ class BinaryCache:
             StorageManager(row[0], storages, database)
         )
 
+    def is_public(self) -> bool:
+        return self.access == CacheAccess.PUBLIC.value
+
+    def is_private(self) -> bool:
+        return self.access == CacheAccess.PRIVATE.value
+
     def save(self) -> None:
         self.database.insert_binary_cache(
             self.id,
@@ -128,7 +134,7 @@ class BinaryCache:
         return json.dumps(
             {
                 "githubUsername": "",
-                "isPublic": (self.access == CacheAccess.PUBLIC.value),
+                "isPublic": self.is_public(),
                 "name": self.name,
                 "permission": permission,  # TODO
                 "preferredCompressionMethod": "XZ",
@@ -142,7 +148,7 @@ class BinaryCache:
 
         return {
             "cacheName": self.name,
-            "isPublic": (self.access == CacheAccess.PUBLIC.value),
+            "isPublic": self.is_public(),
             # !TODO: CHECK THIS
             "publicKey": public_key.split(":")[1],
         }
@@ -190,6 +196,9 @@ class BinaryCache:
         """
         Synchronize the cache with the DHT.
         """
+
+        if self.is_private():
+            return
 
         self.advertise()
         paths = self.storage.get_store_paths()
