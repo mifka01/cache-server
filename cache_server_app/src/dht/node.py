@@ -89,6 +89,7 @@ class DHT:
             key: Key to put
             value: Value to put
         """
+
         key = dht.InfoHash.get(key)
         self.node.put(key, dht.Value(value.encode()), done_cb=done_callback)
 
