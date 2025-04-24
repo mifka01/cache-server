@@ -11,6 +11,7 @@ setup(
         "cache_server_app/src/cache",
         "cache_server_app/src/commands",
         "cache_server_app/src/config",
+        "cache_server_app/src/dht",
         "cache_server_app/src/parser",
         "cache_server_app/src/storage",
         "cache_server_app/src/storage/providers",
