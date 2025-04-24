@@ -22,7 +22,7 @@ from cache_server_app.src.database import CacheServerDatabase
 from cache_server_app.src.storage.manager import StorageManager
 from cache_server_app.src.storage.factory import StorageFactory
 from cache_server_app.src.cache.access import CacheAccess
-from cache_server_app.src.dht import DHT
+from cache_server_app.src.dht.client import DHTClient
 
 class BinaryCache:
     """
@@ -62,7 +62,7 @@ class BinaryCache:
         self.port = port
         self.retention = retention
         self.storage = storage
-        self.dht = DHT.get_instance()
+        self.dht = DHTClient.get_instance()
 
     @staticmethod
     def exist(id: Optional[str] = None, name: Optional[str] = None, port: Optional[int] = None) -> bool:
@@ -95,20 +95,6 @@ class BinaryCache:
             row[6],
             StorageManager(row[0], storages, database)
         )
-
-    def advertise(self) -> None:
-        """Advertise the binary cache to the DHT."""
-
-        payload = {
-            "name": self.name,
-            "host": config.server_hostname,
-            "port": self.port,
-            "load": '',
-            "free_space": '',
-        }
-
-        data = json.dumps(payload)
-        self.dht.put(f"cache:{self.id}", data)
 
     def save(self) -> None:
         self.database.insert_binary_cache(
@@ -180,6 +166,38 @@ class BinaryCache:
     def update_paths(self, new_name: str) -> None:
         self.database.update_cache_in_paths(self.name, new_name)
 
+    def advertise(self) -> None:
+        """
+        Advertise the cache to the DHT.
+        """
+        payload = {
+            "id": self.id,
+            "name": self.name,
+            "url": self.url,
+            "token": self.token,
+            "access": str(self.access),
+            "port": self.port,
+            "usage": "",
+            "lastAccess": "",
+            "retention": self.retention,
+            "storage": str(self.storage),
+        }
+
+
+        self.dht.put(self.id, json.dumps(payload))
+
+    def sync(self) -> None:
+        """
+        Synchronize the cache with the DHT.
+        """
+
+        self.advertise()
+        paths = self.storage.get_store_paths()
+
+        for path in paths:
+            store_hash = path[1]
+            self.dht.put(store_hash, self.id)
+
     def garbage_collector(self) -> None:
         while True:
             self.collect_garbage()
@@ -193,6 +211,72 @@ class BinaryCache:
             ) / 604800
             if file_age > self.retention:
                 os.remove(file)
+
+
+    def fingerprint(self, references, store_path, nar_hash, nar_size) -> bytes:
+
+        refs = ",".join(["/nix/store/" + ref for ref in references])
+
+        output = f"1;{store_path};{nar_hash};{nar_size};{refs}".encode(
+            "utf-8"
+        )
+        return output
+
+    def _parse_narinfo_text(self, narinfo_str: str) -> dict:
+        """Parse narinfo text into a dictionary of key-value pairs.
+
+        Args:
+            narinfo_str: Raw narinfo string content
+
+        Returns:
+            Dictionary of narinfo fields
+        """
+        result = {}
+        for line in narinfo_str.strip().splitlines():
+            if not line or line.startswith("Sig:"):
+                continue
+
+            if line.startswith("References:"):
+                result["References"] = line.split(": ", 1)[1].split(" ")
+                continue
+
+            try:
+                key, val = line.split(": ", 1)
+                result[key] = val
+            except ValueError:
+                continue
+
+        return result
+
+    def sign(self, narinfo: bytes) -> Dict[str, str]:
+        """Sign narinfo content and return the complete signed narinfo.
+
+        Args:
+            narinfo: Raw narinfo content in bytes
+
+        Returns:
+            Complete signed narinfo text
+        """
+
+        content = self.storage.read("key.priv", binary=True).split(b":")
+        prefix = content[0]
+
+
+        narinfo_dict = self._parse_narinfo_text(narinfo.decode())
+
+        fingerprint = self.fingerprint(
+            narinfo_dict.get("References"),
+            narinfo_dict.get("StorePath"),
+            narinfo_dict.get("NarHash"),
+            narinfo_dict.get("NarSize")
+        )
+
+        sk = ed25519.SigningKey(base64.b64decode(content[1]))
+        sig = prefix + b":" + base64.b64encode(sk.sign(fingerprint))
+        narinfo_dict["Sig"] = sig.decode("utf-8")
+
+        return narinfo_dict
+
 
     def generate_keys(self) -> None:
         sk, pk = ed25519.create_keypair()
