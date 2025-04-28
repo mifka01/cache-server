@@ -10,6 +10,7 @@ Date: 3.4.2025
 from typing import Dict, List, Tuple
 
 import cache_server_app.src.config.base as config
+import os
 from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.cache.base import CacheAccess
@@ -39,13 +40,13 @@ class ConfigValidator:
 
     def _validate_server(self, server: Dict) -> None:
         """Validate server configurations."""
-        required_fields = ["cache-dir", "database", "hostname", "server-port", "deploy-port"]
+        required_fields = ["database", "hostname", "server-port", "deploy-port"]
 
         for field in required_fields:
             if field not in server:
                 self.errors.append(f"Server is missing required field '{field}'")
 
-        for field in ["cache-dir", "database", "hostname", "dht-bootstrap-host", "key"]:
+        for field in ["database", "hostname", "dht-bootstrap-host", "key"]:
             if not isinstance(server[field], str):
                 self.errors.append(f"Server '{field}' must be a string")
 
@@ -113,6 +114,17 @@ class ConfigValidator:
             if not storage_class:
                 supported_types = ", ".join(StorageRegistry.get_all_types())
                 self.errors.append(f"Cache '{cache_name}': Storage '{name}' has unknown type '{storage_type}'. Supported types: {supported_types}")
+                continue
+
+
+            # Validate storage root
+            if "root" not in storage:
+                self.errors.append(f"Cache '{cache_name}': Storage '{name}' is missing required field 'root'")
+                continue
+
+            root = storage["root"]
+            if not isinstance(root, str):
+                self.errors.append(f"Cache '{cache_name}': Storage '{name}' root must be a string")
                 continue
 
             config_requirements = storage_class.get_config_requirements()

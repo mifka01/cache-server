@@ -43,35 +43,35 @@ class LocalStorage(Storage):
         return StorageType.LOCAL
 
     def new_file(self, path: str, data: bytes = b"") -> None:
-        path = os.path.join(self.root, path)
+        path = os.path.join(self.storage_path, path)
         with open(path, "wb") as f:
             f.write(data)
 
     def save(self, path: str, data: bytes) -> None:
-        path = os.path.join(self.root, path)
+        path = os.path.join(self.storage_path, path)
         with open(path, "wb") as f:
             f.write(data)
 
     def remove(self, path: str) -> None:
-        path = os.path.join(self.root, path)
+        path = os.path.join(self.storage_path, path)
         os.remove(path)
 
     def read(self, path: str, binary: bool = False) -> str | bytes:
-        path = os.path.join(self.root, path)
+        path = os.path.join(self.storage_path, path)
         with open(path, "rb" if binary else "r") as f:
             return f.read()
 
     def rename(self, path: str, new_name: str) -> None:
-        path = os.path.join(self.root, path)
-        new_path = os.path.join(self.root, new_name)
+        path = os.path.join(self.storage_path, path)
+        new_path = os.path.join(self.storage_path, new_name)
 
         os.rename(path, new_path)
 
     def list(self) -> list[str]:
-        return os.listdir(self.root)
+        return os.listdir(self.storage_path)
 
     def find(self, name: str, strict: bool = False) -> str | None:
-        for file in os.listdir(self.root):
+        for file in os.listdir(self.storage_path):
             if strict and name == file:
                 return file
             elif not strict and name in file:

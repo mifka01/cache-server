@@ -18,7 +18,7 @@ from cache_server_app.src.storage.type import StorageType
 
 class StorageFactory:
     @staticmethod
-    def create_storage(id:str, name: str, type: str, *args: Any) -> Storage:
+    def create_storage(id:str, name: str, type: str, root: str, *args: Any) -> Storage:
         try:
             storage_type = StorageType(type.lower())
 
@@ -30,7 +30,7 @@ class StorageFactory:
 
             storage_class: Type[Storage] = getattr(module, class_name)
 
-            return storage_class(id, name, type, *args)
+            return storage_class(id, name, type, root, *args)
 
         except (ValueError, AttributeError) as e:
             raise ValueError(f"Invalid storage type. Valid types are: {StorageType.str()}") from e

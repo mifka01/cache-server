@@ -26,7 +26,6 @@ try:
         config = safe_load(file)
 
     server_config = config.get("server", {})
-    cache_dir = server_config.get("cache-dir", "/var/cache/cache-server")
     database = server_config.get("database", "/var/lib/cache-server/db.sqlite")
     server_hostname = server_config.get("hostname", "localhost")
     dht_port = int(server_config.get("dht-port", 4222))

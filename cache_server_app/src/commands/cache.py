@@ -48,7 +48,6 @@ class CacheCommands(BaseCommand):
         cache_url = f"http://{name}.{config.server_hostname}"
         cache_id = str(uuid.uuid1())
         cache_token = jwt.encode({"name": name}, config.key, algorithm="HS256")
-        cache_dir = os.path.join(config.cache_dir, name)
 
         storage_instances = []
 
@@ -57,7 +56,8 @@ class CacheCommands(BaseCommand):
             storage_name = str(storage['name'])
             storage_type = str(storage['type'])
             storage_config = storage['config']
-            storage_instances.append(StorageFactory.create_storage(storage_id, storage_name, storage_type, storage_config, cache_dir))
+            storage_root = os.path.join(str(storage['root']), name)
+            storage_instances.append(StorageFactory.create_storage(storage_id, storage_name, storage_type, storage_root, storage_config))
 
         manager = StorageManager(cache_id, storage_instances)
 
@@ -120,6 +120,7 @@ class CacheCommands(BaseCommand):
             sys.exit(1)
 
     def delete(self, name: str) -> None:
+        ## !! TODO !! CHECK ALL DELETE METHODS
         """Delete a binary cache."""
         cache = BinaryCache.get(name=name)
         if not cache:
@@ -138,12 +139,13 @@ class CacheCommands(BaseCommand):
             print(f"ERROR: Binary cache {name} is running.")
             sys.exit(1)
 
-        cache_dir = os.path.join(config.cache_dir, name)
-        try:
-            shutil.rmtree(cache_dir)
-        except PermissionError:
-            print(f"ERROR: Can't delete directory {cache_dir}. Permission denied.")
-            sys.exit(1)
+        # TODO: CHECK THIS 
+        # cache_dir = os.path.join(config.cache_dir, name)
+        # try:
+        #     shutil.rmtree(cache_dir)
+        # except PermissionError:
+        #     print(f"ERROR: Can't delete directory {cache_dir}. Permission denied.")
+        #     sys.exit(1)
         cache.delete()
 
     def update(self, name: str, new_name: str | None, port: int | None, access: str | None, retention: int | None) -> None:

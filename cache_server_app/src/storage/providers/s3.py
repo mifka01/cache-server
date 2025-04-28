@@ -44,13 +44,13 @@ class S3Storage(Storage):
         )
 
         self.bucket = config["s3_bucket"]
-        self.root = path.strip("/") + "/"
+        self.storage_path = path.strip("/") + "/"
 
     def get_type(self) -> str:
         return StorageType.S3
 
     def new_file(self, path: str, data: bytes = b"") -> None:
-        full_path = os.path.join(self.root, path).lstrip("/")
+        full_path = os.path.join(self.storage_path, path).lstrip("/")
 
         try:
             self.s3_client.put_object(Bucket=self.bucket, Key=full_path, Body=data)
@@ -58,7 +58,7 @@ class S3Storage(Storage):
             raise IOError(f"Error creating file {path}: {e}")
 
     def save(self, path: str, data: bytes) -> None:
-        full_path = os.path.join(self.root, path).lstrip("/")
+        full_path = os.path.join(self.storage_path, path).lstrip("/")
 
         try:
             self.s3_client.put_object(Bucket=self.bucket, Key=full_path, Body=data)
@@ -66,7 +66,7 @@ class S3Storage(Storage):
             raise IOError(f"Error saving file {path}: {e}")
 
     def remove(self, path: str) -> None:
-        full_path = os.path.join(self.root, path).lstrip("/")
+        full_path = os.path.join(self.storage_path, path).lstrip("/")
 
         try:
             self.s3_client.delete_object(Bucket=self.bucket, Key=full_path)
@@ -74,7 +74,7 @@ class S3Storage(Storage):
             raise IOError(f"Error removing file {path}: {e}")
 
     def read(self, path: str, binary: bool = False) -> str | bytes:
-        full_path = os.path.join(self.root, path).lstrip("/")
+        full_path = os.path.join(self.storage_path, path).lstrip("/")
 
         try:
             response = self.s3_client.get_object(Bucket=self.bucket, Key=full_path)
@@ -85,8 +85,8 @@ class S3Storage(Storage):
             raise IOError(f"Error reading file {path}: {e}")
 
     def rename(self, path: str, new_name: str) -> None:
-        full_old_path = os.path.join(self.root, path).lstrip("/")
-        full_new_path = os.path.join(self.root, new_name).lstrip("/")
+        full_old_path = os.path.join(self.storage_path, path).lstrip("/")
+        full_new_path = os.path.join(self.storage_path, new_name).lstrip("/")
 
         try:
             self.s3_client.copy_object(
@@ -102,13 +102,13 @@ class S3Storage(Storage):
     def list(self) -> list[str]:
         try:
             response = self.s3_client.list_objects_v2(
-                Bucket=self.bucket, Prefix=self.root
+                Bucket=self.bucket, Prefix=self.storage_path
             )
 
             return [
-                obj["Key"][len(self.root) :]
+                obj["Key"][len(self.storage_path) :]
                 for obj in response.get("Contents", [])
-                if obj["Key"] != self.root
+                if obj["Key"] != self.storage_path
             ]
         except ClientError as e:
             raise IOError(f"Error listing files: {e}")
@@ -116,11 +116,11 @@ class S3Storage(Storage):
     def find(self, name: str, strict: bool = False) -> str | None:
         try:
             response = self.s3_client.list_objects_v2(
-                Bucket=self.bucket, Prefix=self.root
+                Bucket=self.bucket, Prefix=self.storage_path
             )
 
             for obj in response.get("Contents", []):
-                file_path = obj["Key"][len(self.root) :]
+                file_path = obj["Key"][len(self.storage_path) :]
 
                 if strict and file_path == name:
                     return file_path

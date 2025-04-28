@@ -43,12 +43,12 @@ class StorageManager:
         storage_ids = [storage.id for storage in self.storages]
         return self.database.get_store_path_row(storage_ids, store_hash, file_hash)
 
-    def add_storage(self, name: str, type: str, config: dict, cache_dir: str) -> None:
+    def add_storage(self, name: str, type: str, root: str, config: dict) -> None:
         id = str(uuid.uuid1())
-        storage = StorageFactory.create_storage(id, name, type, config, cache_dir)
+        storage = StorageFactory.create_storage(id, name, type, root, config)
 
         self.storages.append(storage)
-        self.database.insert_cache_storage(storage.id, storage.name, storage.type, self.cache_id)
+        self.database.insert_cache_storage(storage.id, storage.name, storage.type, storage.root, self.cache_id)
         for key, value in storage.config.items():
             self.database.insert_storage_config(storage.id, key, value)
 
@@ -59,10 +59,10 @@ class StorageManager:
                 self.database.delete_storage(storage.id)
                 break
 
-    def update_storage(self, name: str, type: str, config: Dict[str, str]) -> None:
+    def update_storage(self, name: str, type: str, root: str, config: Dict[str, str]) -> None:
         for storage in self.storages:
             if storage.name == name:
-                self.database.update_storage(storage.id, type)
+                self.database.update_storage(storage.id, type, root)
                 self.database.delete_storage_config(storage.id)
                 for key, value in config.items():
                     self.database.insert_storage_config(storage.id, key, value)
@@ -70,12 +70,25 @@ class StorageManager:
     def _choose_storage(self) -> Storage:
         # TODO implement choosing right storage
         # for now just return first storage
+
+        # round-robbin
+        # load-based
+        # free capacity
+        # percentage
+        # in-order
+
+
         if not self.storages:
             raise ValueError("No storage available")
 
         return self.storages[0]
 
-    def new_file(self, path: str, data: bytes = b"") -> None:
+    def new_file(self, path: str, data: bytes = b"", all: bool = False) -> None:
+        if all:
+            for storage in self.storages:
+                storage.new_file(path, data)
+            return
+
         storage = self._choose_storage()
         storage.new_file(path, data)
 
