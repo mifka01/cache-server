@@ -11,6 +11,7 @@ Date: 3.4.2025
 
 from typing import Dict, Set, Optional, List, Tuple
 from dataclasses import dataclass
+import os
 
 import cache_server_app.src.config.base as config
 from cache_server_app.src.commands.registry import CommandRegistry
@@ -99,6 +100,7 @@ class ConfigManager:
         for storage in storages:
             storage_name = str(storage.get("name"))
             storage_type = str(storage.get("type"))
+            storage_root = os.path.join(str(storage.get("root")), cache_name)
 
             self.existing_storages.add(storage_name)
 
@@ -106,10 +108,10 @@ class ConfigManager:
             existing_storage = cache.storage.get_storage(name=storage_name)
 
             if existing_storage is not None:
-                if existing_storage.type != storage_type or existing_storage.config != storage_config:
-                    cache.storage.update_storage(storage_name, storage_type, storage_config)
+                if existing_storage.type != storage_type or existing_storage.config != storage_config or existing_storage.root != storage_root:
+                    cache.storage.update_storage(storage_name, storage_type, storage_root, storage_config)
             else:
-                cache.storage.add_storage(storage_name, storage_type, storage_config, cache.cache_dir)
+                cache.storage.add_storage(storage_name, storage_type, storage_root, storage_config)
 
     def _handle_workspaces(self) -> None:
         """Handle workspace configurations."""
@@ -221,8 +223,9 @@ class ConfigManager:
         for storage in cache_config.get("storages", []):
             storage_name = storage.get("name")
             storage_type = storage.get("type")
+            storage_root = storage.get("root")
             storage_config = self._get_storage_config(storage, storage_type)
-            storages.append({"name": storage_name, "type": storage_type, "config": storage_config})
+            storages.append({"name": storage_name, "type": storage_type, "root": storage_root, "config": storage_config})
 
         self.registry.execute("cache", "create", name, port, access, retention, storages)
 

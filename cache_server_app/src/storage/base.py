@@ -11,6 +11,7 @@ Date: 5.12.2024
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional, overload
+import os
 
 
 @dataclass
@@ -29,7 +30,7 @@ class StorageConfig:
 
 class Storage(ABC):
     def __init__(
-        self, id: str, name: str, type: str, config: Dict[str, str], root: str = ""
+        self, id: str, name: str, type: str, root: str, config: Dict[str, str],
     ) -> None:
         """Initialize the storage object.
 
@@ -37,16 +38,17 @@ class Storage(ABC):
             id (str): The ID of the storage.
             name (str): The name of the storage.
             type (str): The type of storage.
+            root (str): The path to the root directory. Defaults to ".".
             config (Dict[str, str]): The storage configuration.
-            root (str): The path to the root directory. Defaults to "".
         """
         self.id = id
         self.name = name
         self.type = type
-        self.config = config
         self.root = root
+        self.config = config
+        self.storage_path = os.path.join(root, name)
 
-        self.setup(config, root)
+        self.setup(config, self.storage_path)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.type})"
