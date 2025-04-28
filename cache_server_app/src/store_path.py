@@ -18,6 +18,8 @@ import ed25519
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.database import CacheServerDatabase
 from typing import Optional
+from cache_server_app.src.storage.factory import StorageFactory
+
 
 
 class StorePath:
@@ -62,6 +64,51 @@ class StorePath:
         self.deriver = deriver
         self.references = references
         self.storage = storage
+
+    @staticmethod
+    def find(
+        store_hash: str = "", file_hash: str = "", private: bool = False
+    ) -> Optional["StorePath"]:
+        db = CacheServerDatabase()
+        store_paths = db.find_store_paths(store_hash=store_hash, file_hash=file_hash)
+        if not store_paths:
+            return None
+
+        selected_row = store_paths[0]
+        selected_storage = None
+
+        for row in store_paths:
+            storage_row = db.get_storage_row(row[9])
+            if not storage_row:
+                continue
+            if storage_row[3] == "local":
+                selected_row = row
+                selected_storage = storage_row
+                break
+
+        if not selected_storage:
+            return None
+
+        cache = BinaryCache.get(id=selected_storage[3])
+        if not cache or (not private and cache.is_private()):
+            return None
+
+        storage = cache.storage.get_storage(selected_storage[0])
+        if not storage:
+            return None
+
+        return StorePath(
+            selected_row[0],
+            selected_row[1],
+            selected_row[2],
+            selected_row[3],
+            selected_row[4],
+            selected_row[5],
+            selected_row[6],
+            selected_row[7],
+            selected_row[8].split(" "),
+            storage,
+        )
 
     @staticmethod
     def get(cache_name: str, store_hash: str = "", file_hash: str = "") -> Optional["StorePath"]:

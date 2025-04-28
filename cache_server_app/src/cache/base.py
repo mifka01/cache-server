@@ -14,6 +14,7 @@ import os
 import time
 from typing import Dict, List, Optional
 from cache_server_app.src.types import NarInfoDict, StorePathRow
+from cache_server_app.src.cache.metrics import CacheMetrics
 
 import ed25519
 
@@ -29,7 +30,6 @@ class BinaryCache:
     Class to represent binary cache.
 
     Attributes:
-        cache_dir: directory where cache stores NAR files
         database: object to handle database connection
         id: binary cache id
         name: binary cache name
@@ -52,7 +52,6 @@ class BinaryCache:
         retention: int,
         storage: StorageManager,
     ) -> None:
-        self.cache_dir = os.path.join(config.cache_dir, name)
         self.database = CacheServerDatabase()
         self.id = id
         self.name = name
@@ -63,6 +62,7 @@ class BinaryCache:
         self.retention = retention
         self.storage = storage
         self.dht = DHTClient.get_instance()
+        self.metrics = CacheMetrics(self.id)
 
     @staticmethod
     def exist(id: Optional[str] = None, name: Optional[str] = None, port: Optional[int] = None) -> bool:
@@ -75,15 +75,14 @@ class BinaryCache:
         if not row:
             return None
 
-        cache_dir = os.path.join(config.cache_dir, row[1])
-
         storages = []
         for storage in database.get_cache_storages(row[0]):
             storage_id = storage[0]
             storage_name = storage[1]
             storage_type = storage[2]
+            storage_root = storage[3]
             storage_config = database.get_storage_config(storage_id)
-            storages.append(StorageFactory.create_storage(storage_id, storage_name, storage_type, storage_config, cache_dir))
+            storages.append(StorageFactory.create_storage(storage_id, storage_name, storage_type, storage_root, storage_config))
 
         return BinaryCache(
             row[0],
@@ -182,12 +181,10 @@ class BinaryCache:
             "token": self.token,
             "access": str(self.access),
             "port": self.port,
-            "usage": "",
-            "lastAccess": "",
+            "metrics": self.metrics.to_dict(),
             "retention": self.retention,
             "storage": str(self.storage),
         }
-
 
         self.dht.put(self.id, json.dumps(payload))
 
@@ -306,10 +303,10 @@ class BinaryCache:
 
         self.storage.new_file(
             "key.priv",
-            prefix + base64.b64encode(sk.to_bytes()),
+            prefix + base64.b64encode(sk.to_bytes()), True
         )
 
         self.storage.new_file(
             "key.pub",
-            prefix + base64.b64encode(pk.to_bytes()),
+            prefix + base64.b64encode(pk.to_bytes()), True
         )

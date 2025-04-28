@@ -6,7 +6,7 @@ Module containing classes for Cache server HTTP and WebSocket APIs.
 
 Author: Marek Križan, Radim Mifka
 
-Date: 17.5.2025
+Date: 17.4.2025
 """
 
 import asyncio
@@ -118,8 +118,9 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
 
             # to make sure that dht put is non-blocking
             def done(ok: bool, _: Any) -> None:
-                if not ok:
-                    print("ERROR: DHT put failed")
+                pass
+                # if not ok:
+                #     print("ERROR: DHT put failed")
 
             if "key" in body and "value" in body:
                 self.server.dht.put(body["key"], body["value"], done)
