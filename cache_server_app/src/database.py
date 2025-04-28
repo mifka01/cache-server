@@ -49,6 +49,7 @@ class CacheServerDatabase:
                                     id VARCHAR UNIQUE PRIMARY KEY,
                                     name VARCHAR NOT NULL,
                                     type VARCHAR NOT NULL,
+                                    root VARCHAR NOT NULL,
                                     cache_id VARCHAR,
                                     FOREIGN KEY(cache_id) REFERENCES binary_cache(id)
                                 ); """
@@ -145,12 +146,12 @@ class CacheServerDatabase:
         params = (id, name, url, token, access, port, retention)
         self.execute_statement(statement, params)
 
-    def insert_cache_storage(self, id: str, name:str, type: str, cache_id: str) -> None:
+    def insert_cache_storage(self, id: str, name:str, type: str, root: str, cache_id: str) -> None:
         statement = """
-            INSERT INTO storage (id, name, type, cache_id)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO storage (id, name, type, root, cache_id)
+            VALUES (?, ?, ?, ?, ?)
             ;"""
-        params = (id, name, type, cache_id)
+        params = (id, name, type, root, cache_id)
         self.execute_statement(statement, params)
 
     def insert_storage_config(self, id: str, config_key: str, config_value: str) -> None:
@@ -175,13 +176,13 @@ class CacheServerDatabase:
             ;"""
         self.execute_statement(statement, (id,))
 
-    def update_storage(self, id: str, type: str) -> None:
+    def update_storage(self, id: str, type: str, root: str) -> None:
         statement = """
             UPDATE storage
-            SET type=?
+            SET type=?, root=?
             WHERE id=?
             ;"""
-        self.execute_statement(statement, (type, id))
+        self.execute_statement(statement, (type, root, id))
 
     def delete_storage(self, id: str) -> None:
         statement = """
@@ -239,6 +240,20 @@ class CacheServerDatabase:
             WHERE cache_id=?
             ;"""
         return self.execute_select(statement, (id,))
+
+    def get_storage_row(self, storage_id: str) -> Optional[StorageRow]:
+        statement = """
+            SELECT * FROM storage
+            WHERE id=?
+            ;"""
+        db_result = self.execute_select(statement, (storage_id,))
+
+        if not db_result:
+            return None
+
+        row: StorageRow = db_result[0]
+
+        return row
 
     def get_storage_config(self, storage_id: str) -> Dict[str, str]:
         statement = """
@@ -371,6 +386,26 @@ class CacheServerDatabase:
         row: StorePathRow = db_result[0]
 
         return row
+
+    def find_store_paths(self, store_hash: str = "", file_hash: str = "") -> List[StorePathRow]:
+        if not store_hash and not file_hash:
+            return []
+
+        if store_hash:
+            statement = """
+                SELECT * FROM store_path
+                WHERE store_hash=?
+                ;"""
+            params = (store_hash,)
+
+        else:
+            statement = """
+                SELECT * FROM store_path
+                WHERE file_hash=?
+                ;"""
+            params = (file_hash,)
+
+        return self.execute_select(statement, params)
 
     def insert_store_path(
         self,
