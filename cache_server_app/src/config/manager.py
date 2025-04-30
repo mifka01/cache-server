@@ -18,6 +18,7 @@ from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.cache.base import BinaryCache, CacheAccess
 from cache_server_app.src.config.validator import ConfigValidator
+from cache_server_app.src.storage.strategies import Strategy
 from cache_server_app.src.workspace import Workspace
 from cache_server_app.src.agent import Agent
 
@@ -97,10 +98,17 @@ class ConfigManager:
         if not cache:
             return
 
+        splits = []
+
         for storage in storages:
             storage_name = str(storage.get("name"))
             storage_type = str(storage.get("type"))
             storage_root = os.path.join(str(storage.get("root")), cache_name)
+
+            if cache.storage.strategy == Strategy.SPLIT.value:
+                split = storage.get(Strategy.SPLIT.value)
+                if split is not None:
+                    splits.append(split)
 
             self.existing_storages.add(storage_name)
 
@@ -110,8 +118,13 @@ class ConfigManager:
             if existing_storage is not None:
                 if existing_storage.type != storage_type or existing_storage.config != storage_config or existing_storage.root != storage_root:
                     cache.storage.update_storage(storage_name, storage_type, storage_root, storage_config)
+
             else:
                 cache.storage.add_storage(storage_name, storage_type, storage_root, storage_config)
+
+        if cache.storage.strategy == Strategy.SPLIT.value and splits != cache.storage.strategy_state.get(Strategy.SPLIT.value, []):
+            cache.storage.strategy_state[Strategy.SPLIT.value] = splits
+            cache.update()
 
     def _handle_workspaces(self) -> None:
         """Handle workspace configurations."""
@@ -153,17 +166,21 @@ class ConfigManager:
 
         port = cache_config.get("port", config.default_port)
         retention = cache_config.get("retention", config.default_retention)
+        access = cache_config.get("access", CacheAccess.PUBLIC.value)
+        storage_strategy = cache_config.get("storage-strategy", config.default_storage_strategy)
 
         needs_update = (
             existing_cache.port != port or
-            existing_cache.retention != retention
+            existing_cache.retention != retention or
+            existing_cache.access != access or
+            existing_cache.storage.strategy != storage_strategy
         )
 
         return ResourceState(
             name=name,
             exists=True,
             needs_update=needs_update,
-            current_config={"port": port, "retention": retention}
+            current_config={"port": port, "retention": retention, "access": access, "storage-strategy": storage_strategy}
         )
 
     def _get_workspace_state(self, name: str, workspace_config: Dict) -> ResourceState:
@@ -218,6 +235,7 @@ class ConfigManager:
         port = cache_config.get("port", config.default_port)
         retention = cache_config.get("retention", config.default_retention)
         access = cache_config.get("access", CacheAccess.PUBLIC.value)
+        storage_strategy = cache_config.get("storage-strategy", config.default_storage_strategy)
         storages = []
 
         for storage in cache_config.get("storages", []):
@@ -225,17 +243,18 @@ class ConfigManager:
             storage_type = storage.get("type")
             storage_root = storage.get("root")
             storage_config = self._get_storage_config(storage, storage_type)
-            storages.append({"name": storage_name, "type": storage_type, "root": storage_root, "config": storage_config})
+            storages.append({"name": storage_name, "type": storage_type, "root": storage_root, Strategy.SPLIT.value: storage.get(Strategy.SPLIT.value, None), "config": storage_config})
 
-        self.registry.execute("cache", "create", name, port, access, retention, storages)
+        self.registry.execute("cache", "create", name, port, access, retention, storage_strategy, storages)
 
     def _update_cache(self, name: str, cache_config: Dict) -> None:
         """Update an existing cache."""
         port = cache_config.get("port", config.default_port)
         retention = cache_config.get("retention", config.default_retention)
         access = cache_config.get("access", CacheAccess.PUBLIC.value)
+        storage_strategy = cache_config.get("storage-strategy", config.default_storage_strategy)
 
-        self.registry.execute("cache", "update", name, None, port, access, retention)
+        self.registry.execute("cache", "update", name, None, port, access, retention, storage_strategy)
 
     def _create_workspace(self, name: str, workspace_config: Dict) -> None:
         """Create a new workspace."""

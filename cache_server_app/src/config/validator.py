@@ -14,6 +14,7 @@ import os
 from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.cache.base import CacheAccess
+from cache_server_app.src.storage.strategies import STRATEGIES, Strategy
 
 
 class ConfigValidator:
@@ -46,11 +47,31 @@ class ConfigValidator:
             if field not in server:
                 self.errors.append(f"Server is missing required field '{field}'")
 
-        for field in ["database", "hostname", "dht-bootstrap-host", "key"]:
+        if "standalone" in server and not isinstance(server["standalone"], bool):
+            self.errors.append("Server 'standalone' must be a boolean")
+
+        dht_required_fields = ["dht-bootstrap-host", "dht-bootstrap-port"]
+        if not server.get("standalone", False):
+            if any(field not in server for field in dht_required_fields):
+                self.errors.append(f"Server is missing required fields for DHT: {', '.join(dht_required_fields)}")
+                return
+
+        strings = ["database", "hostname", "key"]
+        ports = ["server-port", "deploy-port"]
+
+
+        if not isinstance(config.dht_port, int) or config.dht_port < 1 or config.dht_port > 65535:
+                self.errors.append(f"Server 'dht-port' must be an integer between 1 and 65535")
+
+        if not server.get("standalone", False):
+            strings.append("dht-bootstrap-host")
+            ports.append("dht-bootstrap-port")
+
+        for field in strings:
             if not isinstance(server[field], str):
                 self.errors.append(f"Server '{field}' must be a string")
 
-        for field in ["dht-port", "dht-bootstrap-port", "server-port", "deploy-port"]:
+        for field in ports:
             if not isinstance(server[field], int) or server[field] < 1 or server[field] > 65535:
                 self.errors.append(f"Server '{field}' must be an integer between 1 and 65535")
 
@@ -86,8 +107,25 @@ class ConfigValidator:
                 if not isinstance(retention, int) or retention < 0:
                     self.errors.append(f"Cache '{name}': retention must be a non-negative integer")
 
+            if "storage-strategy" in cache:
+                strategy = cache["storage-strategy"]
+                if strategy not in STRATEGIES.keys():
+                    self.errors.append(f"Cache '{name}': storage-strategy must be one of {', '.join(STRATEGIES.keys())}")
+
+                if strategy == Strategy.SPLIT.value:
+                    split = 100
+                    for storage in cache.get("storages", []):
+                        if Strategy.SPLIT.value not in storage:
+                            self.errors.append(f"Cache '{name}': Storage '{storage['name']}' must have '{Strategy.SPLIT.value}' field for {Strategy.SPLIT.value} strategy")
+                        else:
+                            split -= storage[Strategy.SPLIT.value]
+
+                    if split != 0:
+                        self.errors.append(f"Cache '{name}': Storage {Strategy.SPLIT.value} values must sum to 100, but got {100 - split}")
+
             if "storages" in cache:
                 self._validate_storages(cache["storages"], name)
+
 
     def _validate_storages(self, storages: List[Dict], cache_name: str) -> None:
         """Validate storage configurations for a cache."""

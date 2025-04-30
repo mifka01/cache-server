@@ -9,12 +9,12 @@ Date: 30.3.2025
 """
 
 import os
-import shutil
 import sys
 import uuid
 from typing import Any, Callable, Dict, List
 import signal
 
+from cache_server_app.src.storage.strategies import Strategy
 import jwt
 
 import cache_server_app.src.config.base as config
@@ -28,7 +28,7 @@ from cache_server_app.src.storage.manager import StorageManager
 class CacheCommands(BaseCommand):
     """Handles all cache-related commands."""
 
-    def create(self, name: str, port: int, access:str, retention: int | None, storages: List[Dict[str, str | Dict[str, str]]]) -> None:
+    def create(self, name: str, port: int, access:str, retention: int | None, storage_strategy: str, storages: List[Dict[str, str | Dict[str, str]]]) -> None:
         """Create a new binary cache."""
         if BinaryCache.exist(name=name):
             print(f"ERROR: Binary cache {name} already exists.")
@@ -50,6 +50,10 @@ class CacheCommands(BaseCommand):
         cache_token = jwt.encode({"name": name}, config.key, algorithm="HS256")
 
         storage_instances = []
+        state: dict[str, List[str]] = {}
+
+        if storage_strategy == Strategy.SPLIT.value:
+            state[Strategy.SPLIT.value] = []
 
         for storage in storages:
             storage_id = str(uuid.uuid1())
@@ -59,7 +63,10 @@ class CacheCommands(BaseCommand):
             storage_root = os.path.join(str(storage['root']), name)
             storage_instances.append(StorageFactory.create_storage(storage_id, storage_name, storage_type, storage_root, storage_config))
 
-        manager = StorageManager(cache_id, storage_instances)
+            if storage_strategy == Strategy.SPLIT.value:
+                state[Strategy.SPLIT.value].append(str(storage[Strategy.SPLIT.value]))
+
+        manager = StorageManager(cache_id, storage_instances, storage_strategy, state)
 
         cache = BinaryCache(
             cache_id,
@@ -148,7 +155,7 @@ class CacheCommands(BaseCommand):
         #     sys.exit(1)
         cache.delete()
 
-    def update(self, name: str, new_name: str | None, port: int | None, access: str | None, retention: int | None) -> None:
+    def update(self, name: str, new_name: str | None, port: int | None, access: str | None, retention: int | None, storage_strategy: str | None) -> None:
         """Update a binary cache."""
         cache = BinaryCache.get(name=name)
         if not cache:
@@ -163,12 +170,13 @@ class CacheCommands(BaseCommand):
             print(f"ERROR: Access must be one of {CacheAccess.str()}.")
             sys.exit(1)
 
-        if access is None:
-            access = CacheAccess.PUBLIC.value
+        if access:
+            cache.access = CacheAccess(access)
 
         if new_name:
             if not BinaryCache.get(new_name):
-                os.rename(cache.cache_dir, os.path.join(config.cache_dir, new_name))
+                # !! TODO !!
+                # os.rename(cache.cache_dir, os.path.join(config.cache_dir, new_name))
                 cache.update_workspaces(new_name)
                 cache.update_paths(new_name)
                 cache.name = new_name
@@ -187,6 +195,9 @@ class CacheCommands(BaseCommand):
         if port:
             cache.port = port
 
+        if storage_strategy:
+            cache.storage.strategy = Strategy(storage_strategy)
+
         cache.update()
 
     def list(self, private: bool, public: bool) -> None:
@@ -203,19 +214,33 @@ class CacheCommands(BaseCommand):
             print(row[1])
 
     def info(self, name: str) -> None:
-        """Get information about a binary cache."""
+        """Display detailed information about a binary cache."""
         cache = BinaryCache.get(name=name)
         if not cache:
-            print(f"ERROR: Binary cache {name} does not exist.")
+            print(f"ERROR: Binary cache '{name}' does not exist.")
             sys.exit(1)
 
-        if cache.retention == -1:
-            retention = None
-        else:
-            retention = cache.retention
+        retention = None if cache.retention == -1 else cache.retention
 
-        output = f"Id: {cache.id}\nName: {cache.name}\nUrl: {cache.url}\nToken: {cache.token}\nAccess: {cache.access}\nPort: {cache.port}\nRetention: {retention}\nStorage: {cache.storage}"
+        strategy = cache.storage.strategy.value
+        split_info = ""
+        if strategy == Strategy.SPLIT.value:
+            split_storages = cache.storage.strategy_state.get(Strategy.SPLIT.value, [])
+            split_info = " - " + "/".join(map(str, split_storages))
+
+        output = (
+            f"Id: {cache.id}\n"
+            f"Name: {cache.name}\n"
+            f"Url: {cache.url}\n"
+            f"Token: {cache.token}\n"
+            f"Access: {cache.access}\n"
+            f"Port: {cache.port}\n"
+            f"Retention: {retention}\n"
+            f"Storage strategy: {strategy}{split_info}\n"
+            f"Storage: {cache.storage}"
+        )
         print(output)
+
 
     def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
         """Execute the specified cache command."""

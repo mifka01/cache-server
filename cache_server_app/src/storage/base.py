@@ -149,3 +149,30 @@ class Storage(ABC):
             Optional[str]: The path to the file if found, None otherwise.
         """
         raise NotImplementedError
+
+    @abstractmethod
+    def get_available_space(self) -> int:
+        """Get the available space in bytes.
+
+        Returns:
+            int: The available space in bytes.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_used_space(self) -> int:
+        """Get the space used in bytes.
+
+        Returns:
+            int: The space used in bytes.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_full(self) -> bool:
+        """Check if the storage is full.
+
+        Returns:
+            bool: True if the storage is full, False otherwise.
+        """
+        raise NotImplementedError

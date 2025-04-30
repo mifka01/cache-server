@@ -92,7 +92,7 @@ class BinaryCache:
             row[4],
             row[5],
             row[6],
-            StorageManager(row[0], storages, database)
+            StorageManager(row[0], storages, row[7], json.loads(str(row[8])), database)
         )
 
     def is_public(self) -> bool:
@@ -110,6 +110,8 @@ class BinaryCache:
             self.access.value,
             self.port,
             self.retention,
+            self.storage.strategy,
+            json.dumps(self.storage.strategy_state),
         )
 
     def update(self) -> None:
@@ -121,6 +123,8 @@ class BinaryCache:
             self.access.value,
             self.port,
             self.retention,
+            self.storage.strategy,
+            json.dumps(self.storage.strategy_state),
         )
 
     def delete(self) -> None:
@@ -182,6 +186,7 @@ class BinaryCache:
             "access": str(self.access),
             "port": self.port,
             "metrics": self.metrics.to_dict(),
+            "available_space": self.storage.get_available_space(),
             "retention": self.retention,
             "storage": str(self.storage),
         }
@@ -209,14 +214,15 @@ class BinaryCache:
             time.sleep(3600)
 
     def collect_garbage(self) -> None:
+        pass
         # TODO: Implement garbage collection
-        for file in os.listdir(self.cache_dir):
-            file_age = (
-                os.path.getctime(os.path.join(self.cache_dir, file)) - time.time()
-            ) / 604800
-            if file_age > self.retention:
-                os.remove(file)
-
+        # for file in os.listdir(self.cache_dir):
+        #     file_age = (
+        #         os.path.getctime(os.path.join(self.cache_dir, file)) - time.time()
+        #     ) / 604800
+        #     if file_age > self.retention:
+        #         os.remove(file)
+        #
 
     def fingerprint(self, references: List[str], store_path: str, nar_hash: str, nar_size: str) -> bytes:
 
