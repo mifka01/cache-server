@@ -5,14 +5,16 @@ base
 Module containing the BinaryCache class.
 
 Author: Marek Križan, Radim Mifka
+
 Date: 1.5.2024
 """
 
 import base64
 import json
-import os
 import time
 from typing import Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from cache_server_app.src.cache.constants import GARBAGE_COLLECTION_INTERVAL
 from cache_server_app.src.types import NarInfoDict, StorePathRow
 from cache_server_app.src.cache.metrics import CacheMetrics
 
@@ -128,7 +130,7 @@ class BinaryCache:
         )
 
     def delete(self) -> None:
-        self.database.delete_storage(self.id)
+        self.storage.delete()
         self.database.delete_binary_cache(self.id)
 
     def cache_json(self, permission: str) -> str:
@@ -210,19 +212,35 @@ class BinaryCache:
 
     def garbage_collector(self) -> None:
         while True:
+            time.sleep(GARBAGE_COLLECTION_INTERVAL * 3600) # hours to seconds
             self.collect_garbage()
-            time.sleep(3600)
 
     def collect_garbage(self) -> None:
-        pass
-        # TODO: Implement garbage collection
-        # for file in os.listdir(self.cache_dir):
-        #     file_age = (
-        #         os.path.getctime(os.path.join(self.cache_dir, file)) - time.time()
-        #     ) / 604800
-        #     if file_age > self.retention:
-        #         os.remove(file)
-        #
+        retention = timedelta(days=self.retention)
+        now = datetime.now(timezone.utc)
+
+        for storage in self.storage.storages:
+            for file in storage.list():
+                if file.startswith("key"):
+                    continue
+                created_at = storage.get_file_creation_time(file)
+
+                file_hash = file.split(".")[0]
+                row = self.database.get_store_path_row([storage.id], file_hash=file_hash)
+                if not row:
+                    if storage.is_new_file(file):
+                        continue
+                    print(f"Removing file {file} from storage {storage.name}")
+                    storage.remove(file)
+
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)  # always use UTC
+
+                if created_at + retention < now:
+                    print(f"Removing file {file} from storage {storage.name}")
+                    storage.remove(file)
+                    if row:
+                        self.database.delete_store_path(row[1], storage.id)
 
     def fingerprint(self, references: List[str], store_path: str, nar_hash: str, nar_size: str) -> bytes:
 

@@ -42,11 +42,7 @@ class StorePathCommands(BaseCommand):
             print("ERROR: Store path not found")
             sys.exit(1)
 
-        # !! TODO !! remove this
-        # for file in os.listdir(cache.cache_dir):
-        #     if path.file_hash in file:
-        #         os.remove(os.path.join(cache.cache_dir, file))
-        # path.delete()
+        path.delete()
 
     def info(self, store_hash: str, cache_name: str) -> None:
         """Get information about a store path."""

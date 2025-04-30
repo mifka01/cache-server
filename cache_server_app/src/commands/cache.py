@@ -13,6 +13,7 @@ import sys
 import uuid
 from typing import Any, Callable, Dict, List
 import signal
+import threading
 
 from cache_server_app.src.storage.strategies import Strategy
 import jwt
@@ -88,10 +89,6 @@ class CacheCommands(BaseCommand):
             print(f"ERROR: Binary cache {name} does not exist.")
             sys.exit(1)
 
-        if self.get_pid(f"/var/run/{cache.id}.pid"):
-            print(f"ERROR: Binary cache {name} is already running.")
-            sys.exit(1)
-
         server = HTTPBinaryCache(
             (config.server_hostname, cache.port),
             BinaryCacheRequestHandler,
@@ -101,6 +98,10 @@ class CacheCommands(BaseCommand):
         print(f"Binary cache started http://{config.server_hostname}:{cache.port}")
         cache.sync()
         try:
+            cg_thread = threading.Thread(target=cache.garbage_collector)
+            cg_thread.daemon = True
+            cg_thread.start()
+
             server.serve_forever()
         except KeyboardInterrupt:
             sys.exit(0)
@@ -127,7 +128,6 @@ class CacheCommands(BaseCommand):
             sys.exit(1)
 
     def delete(self, name: str) -> None:
-        ## !! TODO !! CHECK ALL DELETE METHODS
         """Delete a binary cache."""
         cache = BinaryCache.get(name=name)
         if not cache:
@@ -140,19 +140,12 @@ class CacheCommands(BaseCommand):
                     f"ERROR: Binary cache {name} is connected to workspace {workspace[1]}."
                 )
                 sys.exit(1)
-
-        pid_file = f"/var/run/{cache.id}.pid"
-        if self.get_pid(pid_file):
-            print(f"ERROR: Binary cache {name} is running.")
-            sys.exit(1)
-
-        # TODO: CHECK THIS 
-        # cache_dir = os.path.join(config.cache_dir, name)
-        # try:
-        #     shutil.rmtree(cache_dir)
-        # except PermissionError:
-        #     print(f"ERROR: Can't delete directory {cache_dir}. Permission denied.")
+        #
+        # pid_file = f"/var/run/{cache.id}.pid"
+        # if self.get_pid(pid_file):
+        #     print(f"ERROR: Binary cache {name} is running.")
         #     sys.exit(1)
+
         cache.delete()
 
     def update(self, name: str, new_name: str | None, port: int | None, access: str | None, retention: int | None, storage_strategy: str | None) -> None:

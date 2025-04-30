@@ -98,7 +98,7 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
 
             remote_cache_url = self.server.remote.get_remote_cache_url(store_hash)
-            if not remote_cache_url:
+            if not remote_cache_url or remote_cache_url == self.server.cache.url:
                 self.send_response(404)
                 self.end_headers()
 

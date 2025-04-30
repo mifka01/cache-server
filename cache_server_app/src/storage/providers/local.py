@@ -10,11 +10,12 @@ Date: 5.12.2024
 
 import os
 from typing import Dict
+from datetime import datetime, timezone
 
 from cache_server_app.src.storage.base import Storage, StorageConfig
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.storage.type import StorageType
-from cache_server_app.src.storage.constants import DIR_PERMISSIONS, MAX_STORAGE_USAGE
+from cache_server_app.src.storage.constants import CONSIDERED_NEW_FILE_AGE, DIR_PERMISSIONS, MAX_STORAGE_USAGE
 
 @StorageRegistry.register(StorageType.LOCAL)
 class LocalStorage(Storage):
@@ -56,6 +57,13 @@ class LocalStorage(Storage):
         path = os.path.join(self.storage_path, path)
         os.remove(path)
 
+    def clear(self) -> None:
+        for dirpath, _, filenames in os.walk(self.storage_path):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                print(f"Removing {filepath}")
+                # os.remove(filepath)
+
     def read(self, path: str, binary: bool = False) -> str | bytes:
         path = os.path.join(self.storage_path, path)
         with open(path, "rb" if binary else "r") as f:
@@ -69,6 +77,18 @@ class LocalStorage(Storage):
 
     def list(self) -> list[str]:
         return os.listdir(self.storage_path)
+
+    def get_file_creation_time(self, path: str) -> datetime:
+        path = os.path.join(self.storage_path, path)
+        file_mod_time = os.path.getmtime(path)
+        return datetime.fromtimestamp(file_mod_time, tz=timezone.utc)
+
+    def is_new_file(self, path: str) -> bool:
+        file_mod_time = self.get_file_creation_time(path)
+        file_mod_time_utc = file_mod_time.astimezone(timezone.utc)
+        current_time_utc = datetime.now(timezone.utc)
+
+        return (current_time_utc - file_mod_time_utc).total_seconds() <= CONSIDERED_NEW_FILE_AGE
 
     def find(self, name: str, strict: bool = False) -> str | None:
         for file in os.listdir(self.storage_path):
