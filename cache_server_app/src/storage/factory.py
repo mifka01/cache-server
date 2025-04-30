@@ -22,7 +22,6 @@ class StorageFactory:
         try:
             storage_type = StorageType(type.lower())
 
-            #!TODO Check this
             module_name = f"cache_server_app.src.storage.providers.{storage_type.value}"
 
             class_name = f"{storage_type.value.capitalize()}Storage"
