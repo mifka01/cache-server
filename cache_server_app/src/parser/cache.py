@@ -52,7 +52,7 @@ def add_cache_create_parser(
     cache_create_parser.add_argument(
         "-s",
         "--storage",
-        choices=["local", "s3"],
+        choices=StorageType.list(),
         help="Binary cache storage type",
         default=config.default_storage,
     )
