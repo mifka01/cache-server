@@ -10,6 +10,7 @@ Date: 5.12.2024
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Dict, List, Literal, Optional, overload
 import os
 
@@ -96,6 +97,11 @@ class Storage(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def clear(self) -> None:
+        """Clear the storage."""
+        raise NotImplementedError
+
     @overload
     def read(self, path: str, binary: Literal[True]) -> bytes: ...
 
@@ -136,6 +142,31 @@ class Storage(ABC):
             List[str]: A list of file names in the root directory.
         """
         raise NotImplementedError
+
+    @abstractmethod
+    def get_file_creation_time(self, path: str) -> datetime:
+        """Get the creation time of a file.
+
+        Parameters:
+            path (str): The path to the file from the root directory.
+
+        Returns:
+            datetime: The creation time of the file.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_new_file(self, path: str) -> bool:
+        """Check if a file is new.
+
+        Parameters:
+            path (str): The path to the file from the root directory.
+
+        Returns:
+            bool: True if the file is new, False otherwise.
+        """
+        raise NotImplementedError
+
 
     @abstractmethod
     def find(self, name: str, strict: bool = False) -> Optional[str]:

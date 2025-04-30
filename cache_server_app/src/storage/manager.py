@@ -63,6 +63,7 @@ class StorageManager:
             if storage.id == id or storage.name == name:
                 self.storages.pop(i)
                 self.database.delete_storage(storage.id)
+                self.database.delete_storage_config(storage.id)
                 break
 
     def update_storage(self, name: str, type: str, root: str, config: Dict[str, str]) -> None:
@@ -128,10 +129,6 @@ class StorageManager:
                 return finding, storage
         return None
 
-    def save(self, path: str, data: bytes) -> None:
-        storage = self._choose_storage()
-        storage.save(path, data)
-
     def remove(self, path: str) -> None:
         storage = self._choose_storage()
         storage.remove(path)
@@ -139,6 +136,11 @@ class StorageManager:
     def rename(self, path: str, new_path: str) -> None:
         storage = self._choose_storage()
         storage.rename(path, new_path)
+
+    def delete(self) -> None:
+        """Delete all storages and its content from the disk and database"""
+        for storage in self.storages:
+            self.remove_storage(storage.id)
 
     def get_available_space(self) -> int:
         """Get the available space in bytes."""

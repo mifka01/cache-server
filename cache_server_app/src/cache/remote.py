@@ -81,7 +81,6 @@ class RemoteCacheHelper:
                 print(f"ERROR: Invalid JSON in remote cache data for {remote_cache_id}")
                 continue
 
-        print(f"Best remote cache: {best_remote_cache.get('url') if best_remote_cache else None}")
         return best_remote_cache.get("url") if best_remote_cache else None
 
     def narinfo_dict_to_bytes(self, narinfo_dict: dict) -> bytes:

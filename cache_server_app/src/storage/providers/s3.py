@@ -10,6 +10,7 @@ Date: 5.12.2024
 
 import os
 from typing import Dict
+from datetime import datetime, timezone
 
 import boto3
 from botocore.exceptions import ClientError
@@ -18,6 +19,7 @@ import sys
 from cache_server_app.src.storage.base import Storage, StorageConfig
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.storage.type import StorageType
+from cache_server_app.src.storage.constants import CONSIDERED_NEW_FILE_AGE
 
 
 @StorageRegistry.register(StorageType.S3)
@@ -35,7 +37,7 @@ class S3Storage(Storage):
         if not self.__valid_credentials(
             config[f"s3_access-key"], config["s3_secret-key"]
         ):
-            #!TODO Change this
+            #TODO Check this
             raise IOError("Invalid S3 credentials")
 
         self.s3_client = boto3.client(
@@ -49,6 +51,7 @@ class S3Storage(Storage):
 
     def get_type(self) -> str:
         return StorageType.S3
+
 
     def new_file(self, path: str, data: bytes = b"") -> None:
         full_path = os.path.join(self.storage_path, path).lstrip("/")
@@ -73,6 +76,15 @@ class S3Storage(Storage):
             self.s3_client.delete_object(Bucket=self.bucket, Key=full_path)
         except ClientError as e:
             raise IOError(f"Error removing file {path}: {e}")
+
+    def clear(self) -> None:
+        try:
+            response = self.s3_client.list_objects_v2(Bucket=self.bucket, Prefix=self.storage_path)
+
+            for obj in response.get("Contents", []):
+                self.s3_client.delete_object(Bucket=self.bucket, Key=obj["Key"])
+        except ClientError as e:
+            raise IOError(f"Error clearing storage: {e}")
 
     def read(self, path: str, binary: bool = False) -> str | bytes:
         full_path = os.path.join(self.storage_path, path).lstrip("/")
@@ -113,6 +125,26 @@ class S3Storage(Storage):
             ]
         except ClientError as e:
             raise IOError(f"Error listing files: {e}")
+
+    def get_file_creation_time(self, path: str) -> datetime:
+        full_path = os.path.join(self.storage_path, path).lstrip("/")
+
+        try:
+            response = self.s3_client.head_object(Bucket=self.bucket, Key=full_path)
+            return datetime.fromtimestamp(
+                response["LastModified"].timestamp(), tz=timezone.utc
+            )
+        except ClientError as e:
+            raise IOError(f"Error getting file creation time for {path}: {e}")
+
+    def is_new_file(self, path: str) -> bool:
+        try:
+            file_mod_time = self.get_file_creation_time(path)
+            current_time = datetime.now(timezone.utc)
+
+            return (current_time - file_mod_time).total_seconds() <= CONSIDERED_NEW_FILE_AGE
+        except ClientError as e:
+            raise IOError(f"Error checking if file {path} is new: {e}")
 
     def find(self, name: str, strict: bool = False) -> str | None:
         try:
