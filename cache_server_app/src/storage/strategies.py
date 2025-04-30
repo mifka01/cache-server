@@ -87,6 +87,7 @@ class Strategy(StrEnum):
     ROUND_ROBIN = "round-robin"
     IN_ORDER = "in-order"
     SPLIT = "split"
+    LEAST_USED = "least-used"
 
     def __str__(self) -> str:
         return self.value
@@ -97,5 +98,6 @@ class Strategy(StrEnum):
 STRATEGIES = {
     Strategy.ROUND_ROBIN: round_robin,
     Strategy.IN_ORDER: in_order,
-    Strategy.SPLIT: split
+    Strategy.SPLIT: split,
+    Strategy.LEAST_USED: least_used,
 }
