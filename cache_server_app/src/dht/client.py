@@ -39,6 +39,10 @@ class DHTClient:
             key: Key to put
             value: Value to put
         """
+
+        if config.standalone:
+            return None
+
         data = json.dumps({"key": key, "value": value}).encode("utf-8")
         req = urllib.request.Request(
             f"{self.base_url}/put",
@@ -62,6 +66,10 @@ class DHTClient:
         Returns:
             List[str] | None : Value associated with the key
         """
+
+        if config.standalone:
+            return None
+
         try:
             with urllib.request.urlopen(f"{self.base_url}/get/{urllib.parse.quote(key)}") as response:
                 if response.status == 200:

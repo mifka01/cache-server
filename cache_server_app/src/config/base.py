@@ -30,6 +30,7 @@ try:
     server_config = config.get("server", {})
     database = server_config.get("database", "/var/lib/cache-server/db.sqlite")
     server_hostname = server_config.get("hostname", "localhost")
+    standalone = server_config.get("standalone", False)
     dht_port = int(server_config.get("dht-port", 4222))
     dht_bootstrap_host = server_config.get("dht-bootstrap-host", "localhost")
     dht_bootstrap_port = int(server_config.get("dht-bootstrap-port", 4223))
