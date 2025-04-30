@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from cache_server_app.src.api.constants import DATETIME_FORMAT
 import websockets
 from websockets.server import WebSocketServerProtocol
 from typing import Any, Tuple
@@ -93,12 +94,12 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 {
                     "closureSize": 0,
                     "createdOn": datetime.now(timezone.utc).strftime(
-                        "%Y-%m-%dT%H:%M:%SZ"
+                        DATETIME_FORMAT
                     ),
                     "id": deploy_id,
                     "index": 0,
                     "startedOn": datetime.now(timezone.utc).strftime(
-                        "%Y-%m-%dT%H:%M:%SZ"
+                        DATETIME_FORMAT
                     ),
                     "status": deploy_status,
                     "storePath": "",

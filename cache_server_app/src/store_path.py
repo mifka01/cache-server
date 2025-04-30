@@ -18,7 +18,7 @@ import ed25519
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.database import CacheServerDatabase
 from typing import Optional
-from cache_server_app.src.storage.factory import StorageFactory
+from cache_server_app.src.storage.type import StorageType
 
 
 
@@ -81,7 +81,7 @@ class StorePath:
             storage_row = db.get_storage_row(row[9])
             if not storage_row:
                 continue
-            if storage_row[3] == "local":
+            if storage_row[3] == StorageType.LOCAL.value:
                 selected_row = row
                 selected_storage = storage_row
                 break
