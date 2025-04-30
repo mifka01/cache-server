@@ -73,20 +73,23 @@ class DHT:
             print(f"ERROR: Exception during bootstrap: {e}")
             return False
 
-    def put(self, key: str, value: str, done_callback: Callable | None =None) -> None:
+    def put(self, key: str, value: str, done_callback: Callable | None = None, permanent=True) -> None:
         """
         Put a value into the DHT.
 
         Args:
             key: Key to put
             value: Value to put
+            done_callback: Callback function to call when the operation is done
+            permanent: If True, the node will automatically keep the value on the network as long as node is running,
+                       otherwise the value will be removed after a timeout. https://github.com/savoirfairelinux/opendht/issues/196
         """
 
         if not self.node.isRunning():
             return None
 
         hash_key = dht.InfoHash.get(key)
-        self.node.put(hash_key, dht.Value(value.encode()), done_cb=done_callback)
+        self.node.put(hash_key, dht.Value(value.encode()), done_cb=done_callback, permanent=permanent)
 
     def get(self, key: str, get_callback: Callable | None =None, done_callback:Callable | None=None) -> List[str] | None:
         """
