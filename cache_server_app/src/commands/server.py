@@ -60,7 +60,7 @@ class ServerCommands(BaseCommand):
             CacheServerRequestHandler,
             self.ws_handler,
         )
-        print(f"Server started http://localhost:{config.server_port}")
+        print(f"Server started http://{config.server_hostname}:{config.server_port}")
 
         self.process_manager.run()
 

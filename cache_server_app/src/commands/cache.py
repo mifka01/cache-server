@@ -98,7 +98,7 @@ class CacheCommands(BaseCommand):
             cache
         )
 
-        print(f"Binary cache started http://localhost:{cache.port}")
+        print(f"Binary cache started http://{config.server_hostname}:{cache.port}")
         cache.sync()
         try:
             server.serve_forever()

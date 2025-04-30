@@ -25,6 +25,7 @@ from cache_server_app.src.agent import Agent
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.store_path import StorePath
 from cache_server_app.src.dht.node import DHT
+import cache_server_app.src.config.base as config
 
 
 class HTTPCacheServer(ThreadingHTTPServer):
@@ -54,7 +55,10 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(response)))
             self.end_headers()
-            self.wfile.write(response)
+            try:
+                self.wfile.write(response)
+            except BrokenPipeError:
+                print("Client disconnected before response was sent")
             return
 
         elif m := re.match(r"^/api/v1/cache/([a-z0-9]*)(\?)?", self.path):
@@ -425,8 +429,8 @@ class WebSocketConnectionHandler:
         await websocket.send(message)
 
     async def run(self) -> None:
-        async with websockets.serve(self.handler, "localhost", self.port):
-            print(f"WebSocket server started on ws://localhost:{self.port}")
+        async with websockets.serve(self.handler, config.server_hostname, self.port):
+            print(f"WebSocket server started on ws://{config.server_hostname}:{self.port}")
             await self._stop_event.wait()
 
     def stop(self) -> None:
