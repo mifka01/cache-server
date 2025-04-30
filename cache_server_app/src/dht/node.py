@@ -38,10 +38,9 @@ class DHT:
         """
         Start the DHT node.
         """
-        self.node.run(port=config.dht_port)
-        print(f"DHT node started on port {config.dht_port}")
 
-        if config.should_bootstrap:
+        if not config.standalone:
+            self.node.run(port=config.dht_port)
             print(f"Trying to bootstrap to {config.dht_bootstrap_host}:{config.dht_bootstrap_port}")
             success = self._bootstrap(config.dht_bootstrap_host, config.dht_bootstrap_port)
             if not success:
@@ -83,6 +82,9 @@ class DHT:
             value: Value to put
         """
 
+        if not self.node.isRunning():
+            return None
+
         hash_key = dht.InfoHash.get(key)
         self.node.put(hash_key, dht.Value(value.encode()), done_cb=done_callback)
 
@@ -96,6 +98,9 @@ class DHT:
         Returns:
             str: Value associated with the key
         """
+
+        if not self.node.isRunning():
+            return None
 
         hash_key = dht.InfoHash.get(key)
         res = self.node.get(hash_key, get_cb=get_callback, done_cb=done_callback)
