@@ -11,6 +11,8 @@ Date: 27.4.2025
 
 import time
 
+from cache_server_app.src.cache.constants import AVG_RESPONSE_TIME_WEIGHT, HIT_RATIO_WEIGHT, REQUEST_RATE_WEIGHT
+
 class CacheMetrics:
     """Class to track and report cache load metrics."""
 
@@ -46,7 +48,7 @@ class CacheMetrics:
         request_rate = self.request_count * (1 - recency_factor)
 
         # nomaliuation 40& avg, 30% hit ratio, 30% request rate
-        return (avg_response_time * 0.4) + ((1 - hit_ratio) * 0.3) + (request_rate * 0.3)
+        return (avg_response_time * AVG_RESPONSE_TIME_WEIGHT) + ((1 - hit_ratio) * HIT_RATIO_WEIGHT) + (request_rate * REQUEST_RATE_WEIGHT)
 
     def to_dict(self) -> dict:
         """Convert metrics to a dictionary for serialization."""
