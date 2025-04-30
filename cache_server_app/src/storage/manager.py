@@ -10,17 +10,23 @@ Date: 3.4.2025
 """
 
 import uuid
+import os
+import json
 
 from typing import Dict, List, Literal, Optional, Tuple, overload
 from cache_server_app.src.storage.base import Storage
 from cache_server_app.src.database import CacheServerDatabase
 from cache_server_app.src.storage.factory import StorageFactory
+from cache_server_app.src.storage.type import StorageType
 from cache_server_app.src.types import StorePathRow
+from cache_server_app.src.storage.strategies import Strategy
 
 class StorageManager:
-    def __init__(self, cache_id: str, storages: List[Storage], database: Optional[CacheServerDatabase] = None) -> None:
+    def __init__(self, cache_id: str, storages: List[Storage], strategy: str, strategy_state: dict = {}, database: Optional[CacheServerDatabase] = None) -> None:
         self.cache_id = cache_id
         self.storages = storages
+        self.strategy_state = strategy_state
+        self.strategy = Strategy(strategy)
         self.database = database or CacheServerDatabase()
 
     def __str__(self) -> str:
@@ -68,20 +74,25 @@ class StorageManager:
                     self.database.insert_storage_config(storage.id, key, value)
 
     def _choose_storage(self) -> Storage:
-        # TODO implement choosing right storage
-        # for now just return first storage
 
-        # round-robbin
-        # load-based
-        # free capacity
-        # percentage
-        # in-order
+        if len(self.storages) == 1:
+            if self.storages[0].is_full():
+                print(f"ERROR: Storage {self.storages[0].name} is full.")
+                raise Exception("Storage is full")
+            return self.storages[0]
 
+        try:
+            storage = self.strategy.func(self.storages, self.strategy_state)
+        except Exception as e:
+            print(f"ERROR: Failed to choose storage: {e}")
+            raise
 
-        if not self.storages:
-            raise ValueError("No storage available")
+        # this could be probbly moved to some part when the server is stopped
+        # not really needed to be done every time when the storage is chosen
+        # because the instance holds the state itself
+        self.database.update_storage_strategy_state(self.cache_id, self.strategy, json.dumps(self.strategy_state))
 
-        return self.storages[0]
+        return storage
 
     def new_file(self, path: str, data: bytes = b"", all: bool = False) -> None:
         if all:
@@ -128,4 +139,32 @@ class StorageManager:
     def rename(self, path: str, new_path: str) -> None:
         storage = self._choose_storage()
         storage.rename(path, new_path)
+
+    def get_available_space(self) -> int:
+        """Get the available space in bytes."""
+        space = 0
+
+        seen_disk_ids = set()
+
+        for storage in self.storages:
+            if storage.type == StorageType.LOCAL.value:
+                path = storage.root
+                try:
+                    device_id = os.stat(path).st_dev
+                except FileNotFoundError:
+                    print(f"ERROR: Can't get device id for {path}.")
+                    continue
+
+                # don't count the same disk twice
+                if device_id in seen_disk_ids:
+                    continue
+
+                space += storage.get_available_space()
+                seen_disk_ids.add(device_id)
+            else:
+                # non-local storages
+                space += storage.get_available_space()
+
+        return space
+
 

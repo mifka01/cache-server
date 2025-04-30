@@ -14,7 +14,7 @@ from typing import Dict
 from cache_server_app.src.storage.base import Storage, StorageConfig
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.storage.type import StorageType
-
+from cache_server_app.src.storage.constants import DIR_PERMISSIONS, MAX_STORAGE_USAGE
 
 @StorageRegistry.register(StorageType.LOCAL)
 class LocalStorage(Storage):
@@ -24,14 +24,14 @@ class LocalStorage(Storage):
         return StorageConfig(
             required=[],
             prefix="",
-            config_key="local"
+            config_key=StorageType.LOCAL.value,
         )
 
     def setup(self, config: Dict[str, str], path: str) -> None:
         if os.path.exists(path):
             return
         try:
-            os.makedirs(path, mode=0o755)
+            os.makedirs(path, mode=DIR_PERMISSIONS, exist_ok=True)
         except PermissionError:
             print(f"ERROR: Can't create directory {path}. Permission denied.")
             exit(1)
@@ -77,3 +77,21 @@ class LocalStorage(Storage):
             elif not strict and name in file:
                 return file
         return None
+
+    def get_available_space(self) -> int:
+        """Get the available space in bytes."""
+        statvfs = os.statvfs(self.storage_path)
+        return statvfs.f_bavail * statvfs.f_frsize
+
+    def get_used_space(self) -> int:
+        """Get the used space in bytes."""
+        space = 0
+        for dirpath, _, filenames in os.walk(self.storage_path):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                space += os.path.getsize(filepath)
+        return space
+
+    def is_full(self) -> bool:
+        normalized_used_space = self.get_used_space() / self.get_available_space() * 0.01
+        return normalized_used_space > MAX_STORAGE_USAGE

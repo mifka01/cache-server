@@ -42,7 +42,9 @@ class CacheServerDatabase:
                                     token VARCHAR NOT NULL,
                                     access VARCHAR NOT NULL,
                                     port INT UNIQUE NOT NULL,
-                                    retention INT NOT NULL
+                                    retention INT NOT NULL,
+                                    strategy VARCHAR NOT NULL,
+                                    strategy_state VARCHAR NOT NULL
                                 ); """
 
             storage_table = """ CREATE TABLE storage (
@@ -138,12 +140,23 @@ class CacheServerDatabase:
         access: str,
         port: int,
         retention: int,
+        strategy: str,
+        strategy_state: str,
     ) -> None:
         statement = """
-            INSERT INTO binary_cache (id, name, url, token, access, port, retention)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO binary_cache (id, name, url, token, access, port, retention, strategy, strategy_state)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ;"""
-        params = (id, name, url, token, access, port, retention)
+        params = (id, name, url, token, access, port, retention, strategy, strategy_state)
+        self.execute_statement(statement, params)
+
+    def update_storage_strategy_state(self, id: str, strategy: str, strategy_state: str) -> None:
+        statement = """
+            UPDATE binary_cache
+            SET strategy=?, strategy_state=?
+            WHERE id=?
+            ;"""
+        params = (strategy, strategy_state, id)
         self.execute_statement(statement, params)
 
     def insert_cache_storage(self, id: str, name:str, type: str, root: str, cache_id: str) -> None:
@@ -199,14 +212,16 @@ class CacheServerDatabase:
         token: str,
         access: str,
         port: int,
-        retention: int
+        retention: int,
+        strategy: str,
+        strategy_state: str
     ) -> None:
         statement = """
             UPDATE binary_cache
-            SET name=?, url=?, token=?, access=?, port=?, retention=?
+            SET name=?, url=?, token=?, access=?, port=?, retention=?, strategy=?, strategy_state=?
             WHERE id=?
             ;"""
-        params = (name, url, token, access, port, retention, id)
+        params = (name, url, token, access, port, retention, strategy, strategy_state, id)
         self.execute_statement(statement, params)
 
     def get_binary_cache_row(self, id: str | None = None, name: str | None = None, port: int | None = None) -> Optional[BinaryCacheRow]:
@@ -290,7 +305,7 @@ class CacheServerDatabase:
     def get_storages_store_paths(self, storage_ids: List[str]) -> List[StorePathRow]:
         if not storage_ids:
             return []
-            
+
         placeholders = ', '.join('?' for _ in storage_ids)
         statement = f"""
             SELECT * FROM store_path

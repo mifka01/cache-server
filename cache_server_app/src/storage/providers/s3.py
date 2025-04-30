@@ -13,6 +13,7 @@ from typing import Dict
 
 import boto3
 from botocore.exceptions import ClientError
+import sys
 
 from cache_server_app.src.storage.base import Storage, StorageConfig
 from cache_server_app.src.storage.registry import StorageRegistry
@@ -27,12 +28,12 @@ class S3Storage(Storage):
         return StorageConfig(
             required=["bucket", "region", "access-key", "secret-key"],
             prefix="s3_",
-            config_key="s3"
+            config_key=StorageType.S3.value,
         )
 
     def setup(self, config: Dict[str, str], path: str) -> None:
         if not self.__valid_credentials(
-            config["s3_access-key"], config["s3_secret-key"]
+            config[f"s3_access-key"], config["s3_secret-key"]
         ):
             #!TODO Change this
             raise IOError("Invalid S3 credentials")
@@ -130,6 +131,27 @@ class S3Storage(Storage):
             return None
         except ClientError as e:
             raise IOError(f"Error finding file {name}: {e}")
+
+    def get_available_space(self) -> int:
+        """Get the available space in bytes."""
+        return sys.maxsize # s3 does not provide a way to get available space
+
+    def get_used_space(self) -> int:
+        """Get the used space in bytes."""
+        try:
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket, Prefix=self.storage_path
+            )
+            total_size = sum(
+                obj["Size"] for obj in response.get("Contents", [])
+            )
+            return total_size
+        except ClientError as e:
+            raise IOError(f"Error getting used space: {e}")
+
+    def is_full(self) -> bool:
+        """Check if the storage is full."""
+        return False
 
     def __valid_credentials(self, access_key: str, secret_key: str) -> bool:
         try:

@@ -13,6 +13,8 @@ import os
 import sys
 from yaml import safe_load
 
+from cache_server_app.src.storage.type import StorageType
+
 # Respect XDG_CONFIG_HOME, fallback to ~/.config
 xdg_config_home = os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config"))
 config_file = os.path.join(xdg_config_home, "cache-server", "config.yaml")
@@ -38,7 +40,8 @@ try:
 
     default_retention = int(server_config.get("default-retention", 4))
     default_port = int(server_config.get("default-port", 8080))
-    default_storage = server_config.get("default-storage", "local")
+    default_storage = server_config.get("default-storage", StorageType.LOCAL.value)
+    default_storage_strategy = server_config.get("default-storage-strategy", "round-robin")
 
     should_bootstrap = (
         dht_bootstrap_host != server_hostname or
