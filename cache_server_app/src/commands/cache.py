@@ -102,6 +102,10 @@ class CacheCommands(BaseCommand):
             cg_thread.daemon = True
             cg_thread.start()
 
+            adv_thread = threading.Thread(target=cache.advertise_periodically)
+            adv_thread.daemon = True
+            adv_thread.start()
+
             server.serve_forever()
         except KeyboardInterrupt:
             sys.exit(0)

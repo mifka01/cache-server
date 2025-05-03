@@ -128,7 +128,7 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 #     print("ERROR: DHT put failed")
 
             if "key" in body and "value" in body:
-                self.server.dht.put(body["key"], body["value"], done)
+                self.server.dht.put(body["key"], body["value"], done, permanent=body["permanent"])
                 self.send_response(200)
                 self.end_headers()
             else:

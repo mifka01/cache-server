@@ -53,11 +53,11 @@ class RemoteCacheHelper:
         for remote_cache_id in remote_cache_ids:
 
             remote_cache = self.cache.dht.get(remote_cache_id)
-            if not remote_cache or not remote_cache[0]:
+            if not remote_cache or not remote_cache[-1]:
                 continue
 
             try:
-                remote_cache_info = json.loads(remote_cache[0])
+                remote_cache_info = json.loads(remote_cache[-1])
 
                 start_time = time.time()
                 alive = self.ping_remote_cache(remote_cache_info.get("url"))

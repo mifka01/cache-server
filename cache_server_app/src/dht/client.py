@@ -31,19 +31,21 @@ class DHTClient:
     def __init__(self) -> None:
         self.base_url = f"http://{config.server_hostname}:{config.server_port}/api/v1/dht"
 
-    def put(self, key: str, value: str) -> None:
+    def put(self, key: str, value: str, permanent: bool = False) -> None:
         """
         Put a value into the DHT.
 
         Args:
             key: Key to put
             value: Value to put
+            permanent: If True, the node will automatically keep the value on the network as long as node is running,
+                       otherwise the value will be removed after a timeout. https://github.com/savoirfairelinux/opendht/issues/196
         """
 
         if config.standalone:
             return None
 
-        data = json.dumps({"key": key, "value": value}).encode("utf-8")
+        data = json.dumps({"key": key, "value": value, "permanent": permanent}).encode("utf-8")
         req = urllib.request.Request(
             f"{self.base_url}/put",
             data=data,

@@ -14,7 +14,7 @@ import json
 import time
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta, timezone
-from cache_server_app.src.cache.constants import GARBAGE_COLLECTION_INTERVAL
+from cache_server_app.src.cache.constants import ADVERTISING_INTERVAL, GARBAGE_COLLECTION_INTERVAL
 from cache_server_app.src.types import NarInfoDict, StorePathRow
 from cache_server_app.src.cache.metrics import CacheMetrics
 
@@ -193,7 +193,7 @@ class BinaryCache:
             "storage": str(self.storage),
         }
 
-        self.dht.put(self.id, json.dumps(payload))
+        self.dht.put(self.id, json.dumps(payload), False)
 
     def sync(self) -> None:
         """
@@ -209,6 +209,15 @@ class BinaryCache:
         for path in paths:
             store_hash = path[1]
             self.dht.put(store_hash, self.id)
+
+
+    def advertise_periodically(self) -> None:
+        """
+        Periodically advertise the cache to the DHT.
+        """
+        while True:
+            time.sleep(ADVERTISING_INTERVAL * 60) # minutes to seconds
+            self.advertise()
 
     def garbage_collector(self) -> None:
         while True:
