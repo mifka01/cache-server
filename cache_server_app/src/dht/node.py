@@ -73,7 +73,7 @@ class DHT:
             print(f"ERROR: Exception during bootstrap: {e}")
             return False
 
-    def put(self, key: str, value: str, done_callback: Callable | None = None, permanent=True) -> None:
+    def put(self, key: str, value: str, done_callback: Callable | None = None, permanent: bool = True) -> None:
         """
         Put a value into the DHT.
 
