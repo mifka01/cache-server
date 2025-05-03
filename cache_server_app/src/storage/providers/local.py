@@ -28,6 +28,10 @@ class LocalStorage(Storage):
             config_key=StorageType.LOCAL.value,
         )
 
+    @classmethod
+    def valid_config(cls, config: Dict[str, str]) -> bool:
+        return True
+
     def setup(self, config: Dict[str, str], path: str) -> None:
         if os.path.exists(path):
             return

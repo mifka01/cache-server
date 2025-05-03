@@ -33,13 +33,25 @@ class S3Storage(Storage):
             config_key=StorageType.S3.value,
         )
 
-    def setup(self, config: Dict[str, str], path: str) -> None:
-        if not self.__valid_credentials(
-            config[f"s3_access-key"], config["s3_secret-key"]
-        ):
-            #TODO Check this
-            raise IOError("Invalid S3 credentials")
+    @classmethod
+    def valid_config(cls, config: Dict[str, str]) -> bool:
+        """Validate the S3 configuration."""
 
+        access_key = config["s3_access-key"]
+        secret_key = config["s3_secret-key"]
+        bucket = config["s3_bucket"]
+
+        if not cls.valid_credentials(access_key, secret_key):
+            print("ERROR: Invalid S3 credentials.")
+            return False
+
+        if not cls.valid_bucket(bucket, access_key, secret_key):
+            print(f"ERROR: Invalid S3 bucket: {bucket}")
+            return False
+
+        return True
+
+    def setup(self, config: Dict[str, str], path: str) -> None:
         self.s3_client = boto3.client(
             "s3",
             aws_access_key_id=config["s3_access-key"],
@@ -48,6 +60,7 @@ class S3Storage(Storage):
 
         self.bucket = config["s3_bucket"]
         self.storage_path = path.strip("/") + "/"
+
 
     def get_type(self) -> str:
         return StorageType.S3
@@ -185,13 +198,23 @@ class S3Storage(Storage):
         """Check if the storage is full."""
         return False
 
-    def __valid_credentials(self, access_key: str, secret_key: str) -> bool:
+    @staticmethod
+    def valid_credentials(access_key: str, secret_key: str) -> bool:
         try:
             boto3.client(
                 "sts",
                 aws_access_key_id=access_key,
                 aws_secret_access_key=secret_key,
             ).get_caller_identity()
+            return True
+        except ClientError as e:
+            return False
+
+    @staticmethod
+    def valid_bucket(bucket_name: str, access_key: str, secret_key: str) -> bool:
+        try:
+            boto3.client("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+                         ).head_bucket(Bucket=bucket_name)
             return True
         except ClientError as e:
             return False

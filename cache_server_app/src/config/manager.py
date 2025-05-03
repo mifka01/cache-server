@@ -94,7 +94,10 @@ class ConfigManager:
 
     def _handle_storages(self, cache_name: str, storages: List[Dict]) -> None:
         """Handle storage configurations for a cache."""
+
         cache = BinaryCache.get(name=cache_name)
+
+
         if not cache:
             return
 

@@ -37,7 +37,6 @@ try:
     server_port = int(server_config.get("server-port", 5000))
     deploy_port = int(server_config.get("deploy-port", 5001))
     key = server_config.get("key", "")
-    auto_start_server = server_config.get("auto-start", False)
 
     default_retention = int(server_config.get("default-retention", 4))
     default_port = int(server_config.get("default-port", 8080))

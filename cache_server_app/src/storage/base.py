@@ -55,9 +55,23 @@ class Storage(ABC):
         return f"{self.name} ({self.type})"
 
     @classmethod
+    @abstractmethod
     def get_config_requirements(cls) -> StorageConfig:
         """Get the configuration requirements for this storage type."""
         raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def valid_config(cls, config: Dict[str, str]) -> bool:
+        """Validate the storage configuration.
+
+        Parameters:
+            config (Dict[str, str]): The storage configuration.
+
+        Returns:
+            bool: True if the configuration is valid, False otherwise.
+        """
+        return True
 
     @abstractmethod
     def setup(self, config: Dict[str, str], path: str) -> None:

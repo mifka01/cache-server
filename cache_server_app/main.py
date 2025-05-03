@@ -8,7 +8,6 @@ Date: 1.5.2024
 
 import sys
 
-import cache_server_app.src.config.base as config
 from cache_server_app.src.argument_parsing import handle_arguments
 from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.config.manager import ConfigManager
@@ -28,8 +27,6 @@ def load_configuration() -> bool:
 
 def start_services() -> None:
     """Start the server in foreground."""
-    if not config.auto_start_server:
-        return
 
     # Start server in foreground mode
     registry = CommandRegistry()

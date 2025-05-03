@@ -15,6 +15,7 @@ from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.cache.base import CacheAccess
 from cache_server_app.src.storage.strategies import STRATEGIES, Strategy
+from cache_server_app.src.storage.type import StorageType
 
 
 class ConfigValidator:
@@ -74,9 +75,6 @@ class ConfigValidator:
         for field in ports:
             if not isinstance(server[field], int) or server[field] < 1 or server[field] > 65535:
                 self.errors.append(f"Server '{field}' must be an integer between 1 and 65535")
-
-        if "auto-start" in server and not isinstance(server["auto-start"], bool):
-            self.errors.append("Server 'auto-start' must be a boolean")
 
     def _validate_caches(self, caches: List[Dict]) -> None:
         """Validate cache configurations."""
@@ -168,10 +166,17 @@ class ConfigValidator:
             config_requirements = storage_class.get_config_requirements()
             prefix = config_requirements.prefix
 
+            config = {}
             required_keys = [f"{prefix}{key}" for key in config_requirements.required]
             for key in required_keys:
                 if key not in storage:
                     self.errors.append(f"Cache '{cache_name}': Storage '{name}' is missing required configuration '{key}'")
+                config[key] = storage[key]
+
+            # Validate storage class
+            if not storage_class.valid_config(config):
+                self.errors.append(f"Cache '{cache_name}': Storage '{name}' has invalid configuration for type '{storage_type}'")
+                continue
 
     def _validate_workspaces(self, workspaces: List[Dict], caches: List[Dict]) -> None:
         """Validate workspace configurations."""
