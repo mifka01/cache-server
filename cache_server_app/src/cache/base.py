@@ -15,7 +15,7 @@ import time
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta, timezone
 from cache_server_app.src.cache.constants import ADVERTISING_INTERVAL, GARBAGE_COLLECTION_INTERVAL
-from cache_server_app.src.types import NarInfoDict, StorePathRow
+from cache_server_app.src.types import BinaryCacheRow, NarInfoDict, StorePathRow
 from cache_server_app.src.cache.metrics import CacheMetrics
 
 import ed25519
@@ -69,6 +69,10 @@ class BinaryCache:
     @staticmethod
     def exist(id: Optional[str] = None, name: Optional[str] = None, port: Optional[int] = None) -> bool:
         return CacheServerDatabase().get_binary_cache_row(id, name, port) is not None
+
+    @staticmethod
+    def get_rows() -> List[BinaryCacheRow]:
+        return CacheServerDatabase().get_binary_caches()
 
     @staticmethod
     def get(id: Optional[str] = None, name: Optional[str] = None, port: Optional[int] = None) -> Optional['BinaryCache']:

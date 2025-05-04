@@ -68,6 +68,7 @@ class ConfigManager:
             self._handle_caches()
             self._handle_workspaces()
             self._handle_agents()
+            self._remove_orphaned_resources()
 
             return True, []
         except Exception as e:
@@ -160,6 +161,35 @@ class ConfigManager:
                         self._update_agent(name, agent_config)
                 else:
                     self._create_agent(name, agent_config)
+
+    def _remove_orphaned_resources(self) -> None:
+        """Remove resources that are no longer defined in the configuration."""
+        for cache in BinaryCache.get_rows():
+            name = cache[1]
+            cache_instance = BinaryCache.get(name=name)
+            if not cache_instance:
+                continue
+
+            if name not in self.existing_caches:
+                cache_instance.delete()
+            else:
+                for storage in cache_instance.storage.storages:
+                    if storage.name not in self.existing_storages:
+                        cache_instance.storage.remove_storage(name=storage.name)
+
+        for workspace in Workspace.get_rows():
+            name = workspace[1]
+            if name not in self.existing_workspaces:
+                workspace_instance = Workspace.get(name=name)
+                if workspace_instance:
+                    workspace_instance.delete()
+
+        for agent in Agent.get_rows():
+            name = agent[1]
+            if name not in self.existing_agents:
+                agent_instance = Agent.get(name=name)
+                if agent_instance:
+                    agent_instance.delete()
 
     def _get_cache_state(self, name: str, cache_config: Dict) -> ResourceState:
         """Get the current state of a cache."""
@@ -267,7 +297,7 @@ class ConfigManager:
     def _update_workspace(self, name: str, workspace_config: Dict) -> None:
         """Update an existing workspace."""
         cache_name = workspace_config.get("cache")
-        self.registry.execute("workspace", "update", name, cache_name)
+        self.registry.execute("workspace", "cache", name, cache_name)
 
     def _create_agent(self, name: str, agent_config: Dict) -> None:
         """Create a new agent."""
@@ -277,4 +307,4 @@ class ConfigManager:
     def _update_agent(self, name: str, agent_config: Dict) -> None:
         """Update an existing agent."""
         workspace_name = agent_config.get("workspace")
-        self.registry.execute("agent", "update", name, workspace_name)
+        self.registry.execute("agent", "workspace", name, workspace_name)

@@ -65,7 +65,7 @@ class WorkspaceCommands(BaseCommand):
 
     def cache(self, name: str, cache_name: str) -> None:
         """Change workspace's binary cache."""
-        workspace = Workspace.get(name)
+        workspace = Workspace.get(name=name)
         if not workspace:
             print(f"ERROR: Workspace {name} does not exist.")
             sys.exit(1)

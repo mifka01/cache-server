@@ -9,9 +9,10 @@ Author: Marek Križan
 Date: 1.5.2024
 """
 
-from typing import Optional
+from typing import Optional, List
 
 from cache_server_app.src.database import CacheServerDatabase
+from cache_server_app.src.types import AgentRow
 from cache_server_app.src.workspace import Workspace
 
 
@@ -35,19 +36,26 @@ class Agent:
         self.workspace = workspace
 
     @staticmethod
-    def get(name: str) -> Optional['Agent']:
-        row = CacheServerDatabase().get_agent_row(name)
+    def get_rows() -> List[AgentRow]:
+        return CacheServerDatabase().get_agents()
+
+    @staticmethod
+    def get(id: str | None = None, name : str | None = None) -> Optional['Agent']:
+        row = CacheServerDatabase().get_agent_row(id, name)
         if not row:
             return None
 
-        workspace = Workspace.get(row[3])
+        workspace = Workspace.get(id=row[3])
         if not workspace:
             return None
 
         return Agent(row[0], row[1], row[2], workspace)
 
     def save(self) -> None:
-        self.database.insert_agent(self.id, self.name, self.token, self.workspace.name)
+        self.database.insert_agent(self.id, self.name, self.token, self.workspace.id)
 
     def delete(self) -> None:
         self.database.delete_agent(self.name)
+
+    def update(self) -> None:
+        self.database.update_agent(self.id, self.name, self.token, self.workspace.id)

@@ -29,7 +29,7 @@ class AgentCommands(BaseCommand):
             print(f"ERROR: Agent {name} already exists.")
             sys.exit(1)
 
-        workspace = Workspace.get(workspace_name)
+        workspace = Workspace.get(name=workspace_name)
         if not workspace:
             print(f"ERROR: Workspace {workspace_name} does not exist.")
             sys.exit(1)
@@ -57,6 +57,21 @@ class AgentCommands(BaseCommand):
         for row in workspace.get_agents():
             print(row[1])
 
+    def workspace(self, agent_name: str, workspace_name: str) -> None:
+        """Change the workspace of an agent."""
+        agent = Agent.get(name=agent_name)
+        if not agent:
+            print(f"ERROR: Agent {agent_name} does not exist.")
+            sys.exit(1)
+
+        workspace = Workspace.get(name=workspace_name)
+        if not workspace:
+            print(f"ERROR: Workspace {workspace_name} does not exist.")
+            sys.exit(1)
+
+        agent.workspace = workspace
+        agent.update()
+
     def info(self, name: str) -> None:
         """Get information about an agent."""
         agent = Agent.get(name)
@@ -74,6 +89,7 @@ class AgentCommands(BaseCommand):
             "remove": self.remove,
             "list": self.list,
             "info": self.info,
+            "workspace": self.workspace,
         }
 
         if command not in commands:
