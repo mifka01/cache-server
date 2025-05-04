@@ -32,12 +32,10 @@ class CacheManager:
 
     def stop(self) -> None:
         """Stop all running cache processes."""
-        for name, process in self.cache_processes.items():
+        for _ , process in self.cache_processes.items():
             if process.is_alive():
-                print(f"Stopping cache {name} with PID {process.pid}.")
                 process.terminate()
                 process.join()
-                print(f"Cache {name} stopped.")
 
         self.cache_processes.clear()
         print("All caches stopped.")
