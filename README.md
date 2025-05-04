@@ -25,7 +25,7 @@ This project provides a solution for distributed Nix binary cache management, de
     Uses [OpenDHT](https://github.com/savoirfairelinux/opendht) for decentralized access to cache servers across multiple nodes.
 
 -   **Cachix-Compatible**  
-    Fully supports the Cachix client for seamless binary pushing and fetching.
+    Supports the Cachix client for seamless binary pushing, fetching and deploying.
 
 -   **Flexible Storage Backends**  
     Supports local and S3 storage backends with optional storage _strategies_ for distributing data across multiple backends.
