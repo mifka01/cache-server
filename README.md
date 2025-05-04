@@ -109,10 +109,10 @@ caches:
 
 
 ### 🗄️ Storage Backends
-Required Fields:
-- name - name of the storage
-- type - type of the storage (local or s3)
-- root - root path for storab
+**Required Fields**:
+- **name** - name of the storage
+- **type** - type of the storage
+- **root** - root path for storage
 
 | Type  | Extra Required Fields                                      |
 | ----- | ---------------------------------------------------------- |
@@ -131,7 +131,6 @@ Example S3 configuration:
   s3_access_key: "access-key"
   s3_secret_key: "secret-key"
 ```
-
 
 ### 🔁 Storage Strategy
 
