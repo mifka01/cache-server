@@ -25,7 +25,7 @@ class AgentCommands(BaseCommand):
 
     def add(self, name: str, workspace_name: str) -> None:
         """Add a new agent to a workspace."""
-        if Agent.get(name):
+        if Agent.get(name=name):
             print(f"ERROR: Agent {name} already exists.")
             sys.exit(1)
 
@@ -40,7 +40,7 @@ class AgentCommands(BaseCommand):
 
     def remove(self, name: str) -> None:
         """Remove an agent."""
-        agent = Agent.get(name)
+        agent = Agent.get(name=name)
         if not agent:
             print(f"ERROR: Agent {name} does not exist.")
             sys.exit(1)
@@ -49,7 +49,7 @@ class AgentCommands(BaseCommand):
 
     def list(self, workspace_name: str) -> None:
         """List all agents in a workspace."""
-        workspace = Workspace.get(workspace_name)
+        workspace = Workspace.get(name=workspace_name)
         if not workspace:
             print(f"ERROR: Workspace {workspace_name} does not exist.")
             sys.exit(1)
@@ -74,12 +74,12 @@ class AgentCommands(BaseCommand):
 
     def info(self, name: str) -> None:
         """Get information about an agent."""
-        agent = Agent.get(name)
+        agent = Agent.get(name=name)
         if not agent:
             print(f"ERROR: Agent {name} does not exist.")
             sys.exit(1)
 
-        output = f"Id: {agent.id}\nName: {agent.name}\nToken: {agent.token}\nWorkspace: {agent.workspace.name}"
+        output = f"Id: {agent.id}\nName: {agent.name}\nToken: {agent.token}\nWorkspace: {agent.workspace.name}\n"
         print(output)
 
     def execute(self, command: str, *args: Any, **kwargs: Any) -> None:

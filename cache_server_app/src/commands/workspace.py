@@ -25,7 +25,7 @@ class WorkspaceCommands(BaseCommand):
 
     def create(self, name: str, cache_name: str) -> None:
         """Create a new workspace."""
-        if Workspace.get(name):
+        if Workspace.get(name=name):
             print(f"ERROR: Workspace {name} already exists.")
             sys.exit(1)
 
@@ -40,7 +40,7 @@ class WorkspaceCommands(BaseCommand):
 
     def delete(self, name: str) -> None:
         """Delete a workspace."""
-        workspace = Workspace.get(name)
+        workspace = Workspace.get(name=name)
         if not workspace:
             print(f"ERROR: Workspace {name} does not exist.")
             sys.exit(1)
@@ -55,12 +55,12 @@ class WorkspaceCommands(BaseCommand):
 
     def info(self, name: str) -> None:
         """Get information about a workspace."""
-        workspace = Workspace.get(name)
+        workspace = Workspace.get(name=name)
         if not workspace:
             print(f"ERROR: Workspace {name} does not exist.")
             sys.exit(1)
 
-        output = f"Id: {workspace.id}\nName: {workspace.name}\nToken: {workspace.token}\nBinary cache: {workspace.cache.name}"
+        output = f"Id: {workspace.id}\nName: {workspace.name}\nToken: {workspace.token}\nBinary cache: {workspace.cache.name}\n"
         print(output)
 
     def cache(self, name: str, cache_name: str) -> None:

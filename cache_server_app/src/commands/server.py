@@ -12,11 +12,15 @@ import asyncio
 import sys
 import threading
 from typing import Any
+from cache_server_app.src.agent import Agent
 import cache_server_app.src.config.base as config
 from cache_server_app.src.api.server import CacheServerRequestHandler, HTTPCacheServer, WebSocketConnectionHandler
 from cache_server_app.src.commands.base import BaseCommand
+from cache_server_app.src.commands.workspace import WorkspaceCommands
+from cache_server_app.src.commands.agent import AgentCommands
 from cache_server_app.src.cache.manager import CacheManager
 from cache_server_app.src.dht.node import DHT
+from cache_server_app.src.workspace import Workspace
 
 class ServerCommands(BaseCommand):
     """Handles all server-related commands."""
@@ -40,10 +44,14 @@ class ServerCommands(BaseCommand):
 
     def start(self) -> None:
         """Start the cache server."""
-        self.dht.start()
+        def header(title: str, width: int = 55) -> str:
+            padding = width - len(title) - 2  # account for the spaces
+            left = padding // 2
+            right = padding - left
+            return "#" * left + f" {title} " + "#" * right
 
-        # pid_file = "/var/run/cache-server.pid"
-        # self.save_pid(pid_file)
+        print(header("SERVER"), "\n")
+        self.dht.start()
 
         self.stop_event.clear()
 
@@ -60,9 +68,26 @@ class ServerCommands(BaseCommand):
             CacheServerRequestHandler,
             self.ws_handler,
         )
-        print(f"Server started http://{config.server_hostname}:{config.server_port}")
+        print(f"Server started http://{config.server_hostname}:{config.server_port}\n")
 
+        print(header("CACHE"), "\n")
         self.process_manager.run()
+
+        workspace_commands = WorkspaceCommands()
+        workspaces = Workspace.get_rows()
+        if workspaces:
+            print(header("WORKSPACE"), "\n")
+        for workspace in workspaces:
+            workspace_commands.info(workspace[1])
+
+        agent_commands = AgentCommands()
+        agents = Agent.get_rows()
+        if agents:
+            print(header("AGENT"), "\n")
+        for agent in agents:
+            agent_commands.info(agent[1])
+
+        print("Press Ctrl+C to stop the server\n")
 
         try:
             server.serve_forever()

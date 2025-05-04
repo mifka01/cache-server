@@ -95,7 +95,6 @@ class CacheCommands(BaseCommand):
             cache
         )
 
-        print(f"Binary cache started http://{config.server_hostname}:{cache.port}")
         cache.sync()
         try:
             cg_thread = threading.Thread(target=cache.garbage_collector)
@@ -234,7 +233,7 @@ class CacheCommands(BaseCommand):
             f"Port: {cache.port}\n"
             f"Retention: {retention}\n"
             f"Storage strategy: {strategy}{split_info}\n"
-            f"Storage: {cache.storage}"
+            f"Storage: {cache.storage}\n"
         )
         print(output)
 
