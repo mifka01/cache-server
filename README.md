@@ -1,169 +1,224 @@
-# cache-server - server application compatible with the Cachix client
-🚧 **Work in Progress** 🚧
+# cache-server
 
-## Introduction
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Built with Nix](https://img.shields.io/badge/Built%20With-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
+[![Compatible with Cachix](https://img.shields.io/badge/Compatible%20with-Cachix-orange.svg)](https://cachix.org)
 
-This repository contains the source code of a server application compatible with the Cachix command line client. This application was developed as a part of the bachelor's thesis Remote Distributed Software Deployment in NixOS Systems (Brno University of Technology, Faculty of Information Technology).
+**A self-hostable, distributed Nix binary cache server with flexible storage strategies**
 
-Author: Marek Križan
+[Key Features](#-key-features)
+[Installation](#-installation)
+[Configuration](#%EF%B8%8F-configuration)
+[Usage](#%EF%B8%8F-usage)
+[Known Limitations](#%EF%B8%8F-known-limitations)
+[Contributing](#-contributing)
+[License](#-license)
+[Acknowledgements](#-acknowledgements)
 
-Year: 2024
 
-## Installation
+This project provides a solution for distributed Nix binary cache management, developed as part of the bachelor's thesis _"Distributed Nix Archive Storage"_ at Brno University of Technology, Faculty of Information Technology by Radim Mifka (2025).
 
-### Install cache-server
+----------
 
-To install the cache server run:
-```console
-git clone https://github.com/xkriza08/cache-server.git
-cd cache-server/
+## 🚀 Key Features
+-   **Distributed Cache Network**  
+    Uses [OpenDHT](https://github.com/savoirfairelinux/opendht) for decentralized access to cache servers across multiple nodes.
+
+-   **Cachix-Compatible**  
+    Fully supports the Cachix client for seamless binary pushing and fetching.
+
+-   **Flexible Storage Backends**  
+    Supports local and S3 storage backends with optional storage _strategies_ for distributing data across multiple backends.
+
+-   **Declarative Configuration**  
+    Simple YAML configuration with per-cache settings, supporting multiple cache instances on a single server.
+
+
+## 🛠 Installation
+
+### Using Nix
+
+The simplest way to build the project is using Nix:
+
+```bash
+# Build the project
 nix-build
+
+# Run the server
+./result/bin/cache-server
 ```
 
-### Configuration
 
-To use the cache-server application it is needed to create `~/.cache-server.conf` configuration file.
+### Development Environment
 
-For reference use the file `cache-server/config/cache-server.conf` or the example below:
-```
-[cache-server]
-hostname = cache-server
-cache-dir = binary-caches
-server-port = 12345
-database = dbfile.db
-deploy-port = 54321
-key = secret
-```
+To set up a development environment:
 
-- **hostname** - Hostname of the cache-server. This hostname should be used by the Cachix command line client to access the cache-server.
-- **cache-dir** - Directory in which NAR files will be stored.
-- **server-port** - Port, on which the cache-server will listen for HTTP requests.
-- **database** - SQLite database file.
-- **deploy-port** - Port, on which the cache-server will listen for WebSocket connections.
-- **key** - String, that will be used as a secret for JWT authentication tokens
+```bash
+# Enter development shell
+nix-shell
 
-### Additional setup
+# Run using
+./server.sh
 
-To forward request to specified ports it is reccomended to set up nginx with the following configuration (for NixOS):
-
-```
-services.nginx = {
-  enable = true;
-  virtualHosts = {
-    "<hostname>" = {
-      enableACME = false;
-      locations."/ws" = {
-        proxyPass = "http://localhost:<deploy-port>";
-        proxyWebsockets = true;
-      };
-      locations."/api/v1/deploy/log/" = {
-        proxyPass = "http://localhost:<deploy-port>";
-        proxyWebsockets = true;
-      };
-      locations."/" = {
-        proxyPass = "http://localhost:<server-port>";
-      };
-    };
-    clientMaxBodySize = "0";
-  };
-};
+# Run Static analysis
+mypy cache_server_app/main.py
 ```
 
-## Usage
 
-### server side
+## ⚙️ Configuration
+The configuration file is located at:
+`$XDG_CONFIG_HOME/cache-server/config.yaml`
 
-```console
-usage: cache-server [-h] {listen,hidden-start,stop,cache,agent,workspace,store-path} ...
+### 📁 Server Configuration
 
-Cache server options
-
-positional arguments:
-  {listen,hidden-start,stop,cache,agent,workspace,store-path}
-    listen              Start cache server
-    stop                Stop cache server
-    cache               Manage caches
-    agent               Manage deployment agents
-    workspace           Manage deployment workspaces
-    store-path          Manage store paths
-
-options:
-  -h, --help            show this help message and exit
+```yaml
+server:
+  database: "node.db"              # SQLite database file
+  hostname: "0.0.0.0"               # Bind address
+  standalone: false                 # Operate in standalone mode (no DHT)
+  dht-port: 4222                    # Port for DHT communication
+  dht-bootstrap-host: "other-node"  # Bootstrap node for DHT
+  dht-bootstrap-port: 4223          # Bootstrap node port
+  server-port: 5001                 # HTTP API port
+  deploy-port: 5002                 # Deployment API port
+  key: "your-secret-key-here"       # Authentication key
+  default-retention: 4              # Default retention period (days)
+  default-port: 8080                # Default HTTP port
 ```
 
-#### listen/stop
 
-The cache-server can be started using:
+### 📦 Cache Instances
+Define multiple cache instances with individual settings:
 
-```console
-cache-server listen
+```yaml
+caches:
+  - name: "main"                   # Cache name
+    retention: 7                   # Override default retention (days)
+    port: 8081                     # Override default port
+    storage-strategy: "split"      # Storage strategy (see below)
+    storages:
+      - name: "local-fast"
+        type: "local"
+        root: "binary-caches"      # Local path
+        split: 40                  # Percentage for split strategy
+      - name: "external-usb"
+        type: "local"
+        root: "/Volumes/USB/binary-caches"
+        split: 60
 ```
 
-The cache-server can be stopped using:
-```console
-cache-server stop
+
+### 🗄️ Storage Backends
+Required Fields:
+- name - name of the storage
+- type - type of the storage (local or s3)
+- root - root path for storab
+
+| Type  | Extra Required Fields                                      |
+| ----- | ---------------------------------------------------------- |
+| local |                                                            |
+| s3    | s3_bucket, s3_region, s3_access_key, s3_secret_key |
+
+
+Example S3 configuration:
+
+```yaml
+- name: "remote"
+  type: "s3"
+  root: "binary-caches"        # Folder within bucket
+  s3_bucket: "cache-1"
+  s3_region: "eu-central-1"
+  s3_access_key: "access-key"
+  s3_secret_key: "secret-key"
 ```
 
-#### Setting up a binary cache
 
-To create a binary cache run:
+### 🔁 Storage Strategy
 
-```console
-cache-server cache create <name> <port>
+> ⚠️ Strategies only apply if more than one storage backend is defined.
+
+Configure how data is distributed across storage backends:
+| Strategy      | Description                                                         | Config Requirements           |
+| ------------- | ------------------------------------------------------------------- | ----------------------------- |
+| round-robin | Cycles through storages one by one for each new file.               | No extra fields               |
+| in-order    | Uses storages in listed order until full before moving to the next. | No extra fields               |
+| split       | Distributes files based on a percentage split between storages.     | split field on each storage |
+| least-used  | Dynamically picks the storage with the least usage.                 | No extra fields               |
+
+Example with split strategy:
+
+```yaml
+storage-strategy: "split"
+storages:
+  - name: "storage-1"
+    type: "local"
+    root: "/fast"
+    split: 70
+  - name: "storage-2"
+    type: "s3"
+    root: "binary-caches"
+    s3_bucket: "backup"
+    s3_region: "eu-central-1"
+    s3_access_key: "key"
+    s3_secret_key: "secret"
+    split: 30
 ```
 
-To make the binary cache listen on the specified port run:
-```console
-cache-server cache start <name>
+### 🧩 Workspaces and Agents
+To enable integration with Cachix Deploy, you can define `workspaces` and `agents` in the configuration:
+```yaml
+workspaces:
+  - name: "workspace1"
+    cache: "first"
+
+agents:
+  - name: "agent1"
+    workspace: "workspace1"
+```
+These settings allow the server to support deployments using Cachix agents and workspaces. For more information on how these components work and how to run agents, see the [Cachix Deploy documentation](https://docs.cachix.org/deploy/).
+
+## ▶️ Usage
+
+### Starting the Server
+
+```bash
+# Starting the server
+./result/bin/cache-server
 ```
 
-To forward HTTP requests to binary caches add the following nginx configuration for each binary cache:
-```
-services.nginx = {
-  enable = true;
-  virtualHosts = {
-    "<cache-name>.<hostname>" = {
-      enableACME = false;
-      locations."/" = {
-        proxyPass = "http://localhost:<cache-port>";
-      };
-    };
-  };
-};
+### Pushing Binaries
+
+Use the Cachix client to push derivations:
+
+```bash
+# Push a specific derivation
+cachix push your-cache-name /nix/store/hash-name
+
+# Push closure of a derivation
+nix-store -qR $(which your-program) | cachix push your-cache-name
 ```
 
-To access information about binary cache (for example authentication token) run:
-```console
-cache-server cache info <name>
-```
 
-#### Setting up deployment agents
+See [Cachix documentation](https://docs.cachix.org/) for more details.
 
-To create deployment workspace run:
-```console
-cache-server workspace create <name> <cache-name>
-```
+## ⚠️ Known Limitations
 
-To add agent to workspace run:
+- **Legacy Components**: Features like workspaces and agents are retained from previous version but remain untested and may not function reliably.
+- **Lack of Automated Testing**: Due to the complexity of the distributed setup, the project currently lacks comprehensive automated tests.
+- **Monitoring**: No unified monitoring or logging system is currently implemented.
+- **Deprecated CLI Tool**: A CLI is no longer maintained, as its functionality has been integrated or made obsolete by configuration-driven design.
 
-```console
-cache-server agent add <name> <workspace-name>
-```
+## 🤝 Contributing
 
-To access information about workspace (including deployment activation token) run:
-```console
-cache-server workspace info <name>
-```
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-To access information about agent (including agent token) run:
-```console
-cache-server agent info <name>
-```
+## 📄 License
 
-### client side
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-To use cache-server with the Cachix client run:
+## 🙏 Acknowledgements
 
-```
-cachix config set hostname http://<hostname>
-```
+- Marek Križan, author of the previous version of this project, which served as a foundation for this work
+- Marek Rychlý, thesis supervisor, for guidance and support throughout the project
+- [Attic](https://github.com/zhaofengli/attic) implementation, which provided inspiration
+- [OpenDHT](https://github.com/savoirfairelinux/opendht) for the distributed networking capabilities
