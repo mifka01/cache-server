@@ -12,11 +12,12 @@ Date: 1.5.2024
 import base64
 import json
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta, timezone
 from cache_server_app.src.cache.constants import ADVERTISING_INTERVAL, GARBAGE_COLLECTION_INTERVAL
 from cache_server_app.src.types import BinaryCacheRow, NarInfoDict, StorePathRow
 from cache_server_app.src.cache.metrics import CacheMetrics
+from collections import deque
 
 import ed25519
 
@@ -232,28 +233,61 @@ class BinaryCache:
         retention = timedelta(days=self.retention)
         now = datetime.now(timezone.utc)
 
+        healthy_packages: Set[str] = set()
+        expired_rows: List[StorePathRow] = []
+
         for storage in self.storage.storages:
             for file in storage.list():
                 if file.startswith("key"):
                     continue
+
                 created_at = storage.get_file_creation_time(file)
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=timezone.utc)  # always use UTC
 
                 file_hash = file.split(".")[0]
                 row = self.database.get_store_path_row([storage.id], file_hash=file_hash)
+
                 if not row:
                     if storage.is_new_file(file):
                         continue
                     print(f"Removing file {file} from storage {storage.name}")
                     storage.remove(file)
+                    continue
 
-                if created_at.tzinfo is None:
-                    created_at = created_at.replace(tzinfo=timezone.utc)  # always use UTC
+                package_name = f"{row[1]}-{row[2]}"
+                references = row[8].split(" ") if row[8] else []
 
-                if created_at + retention < now:
-                    print(f"Removing file {file} from storage {storage.name}")
-                    storage.remove(file)
-                    if row:
-                        self.database.delete_store_path(row[1], storage.id)
+                if created_at + retention > now:
+                    healthy_packages.add(package_name)
+                    healthy_packages.update(references)
+                else:
+                    expired_rows.append(row)
+
+        queue = deque(expired_rows)
+        visited = set()
+
+        while queue:
+            row = queue.popleft()
+            package_name = f"{row[1]}-{row[2]}"
+            refs = row[8].split(" ") if row[8] else []
+            filename = f"{row[3]}.nar.xz"
+            current_storage = self.storage.get_storage(row[9])
+
+            if not current_storage:
+                continue
+
+            if package_name in healthy_packages:
+                healthy_packages.update(refs)
+                continue
+
+            if package_name in visited:
+                print(f"Removing file {package_name} from storage {current_storage.name}")
+                current_storage.remove(filename)
+                self.database.delete_store_path(row[1], row[9])
+            else:
+                visited.add(package_name)
+                queue.append(row)
 
     def fingerprint(self, references: List[str], store_path: str, nar_hash: str, nar_size: str) -> bytes:
 
