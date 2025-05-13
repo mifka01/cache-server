@@ -17,10 +17,17 @@ from cache_server_app.src.storage.type import StorageType
 
 # Respect XDG_CONFIG_HOME, fallback to ~/.config
 xdg_config_home = os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config"))
-config_file = os.path.join(xdg_config_home, "cache-server", "config.yaml")
+config_dir = os.path.join(xdg_config_home, "cache-server")
 
-if not os.path.exists(config_file):
-    print(f"ERROR: Config file {config_file} not found.")
+yaml_path = os.path.join(config_dir, "config.yaml")
+yml_path = os.path.join(config_dir, "config.yml")
+
+if os.path.exists(yaml_path):
+    config_file = yaml_path
+elif os.path.exists(yml_path):
+    config_file = yml_path
+else:
+    print(f"ERROR: Neither {yaml_path} nor {yml_path} found.")
     sys.exit(1)
 
 try:
