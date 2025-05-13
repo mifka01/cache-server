@@ -51,7 +51,7 @@ def split(storages: List[Storage], state: StrategyStateDict) -> Storage:
         print("ERROR: splits is not a list, should never happen, fallback to in_order")
         return in_order(storages, state)
 
-    total_used = sum(storage.get_used_space() for storage in storages)
+    total_used = sum(storage.get_used_space() for storage in storages) or 1.0
     least_used = 0.0
     index = 0
 
