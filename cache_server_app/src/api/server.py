@@ -277,13 +277,13 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(response)
 
         # /api/v2/deploy/activate
-        elif m := re.match(r"^/api/v2/deploy/activate(\?)", self.path):
+        elif m := re.match(r"^/api/v2/deploy/activate(\?)?", self.path):
             content_length = int(self.headers["Content-Length"])
             body = json.loads(self.rfile.read(content_length).decode("utf-8"))
             agents = {}
 
             for agent, path in body["agents"].items():
-                if not Agent.get(agent):
+                if not Agent.get(name=agent):
                     self.send_response(400)
                     self.end_headers()
                     return
@@ -328,7 +328,7 @@ class WebSocketConnectionHandler:
 
 
     async def agent_handler(self, websocket: WebSocketServerProtocol) -> None:
-        agent = Agent.get(websocket.request_headers["name"])
+        agent = Agent.get(name=websocket.request_headers["name"])
         if not agent:
             await websocket.close()
             return
@@ -406,7 +406,7 @@ class WebSocketConnectionHandler:
     async def start_deployment(
         self, agent_name: str, path: str, deploy_id: str
     ) -> None:
-        agent = Agent.get(agent_name)
+        agent = Agent.get(name=agent_name)
         if not agent:
             return None
         websocket = self.agents[agent.name]
