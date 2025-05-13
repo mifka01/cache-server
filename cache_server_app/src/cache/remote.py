@@ -117,9 +117,9 @@ class RemoteCacheHelper:
                 narinfo_bytes = self.narinfo_dict_to_bytes(narinfo_dict)
                 return narinfo_bytes, 200
 
-        except urllib.error.URLError as e:
+        except urllib.error.HTTPError as e:
             print(f"ERROR: Failed to fetch remote narinfo: {e}")
-            return None, 502
+            return None, e.code
         except Exception as e:
             print(f"ERROR: Unexpected error fetching narinfo: {e}")
             return None, 500
