@@ -217,7 +217,7 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## 🙏 Acknowledgements
 
-- Marek Križan, author of the previous version of this project, which served as a foundation for this work
+- Marek Križan, author of the [previous version of this project](https://github.com/xkriza08/cache-server), which served as a foundation for this work
 - Marek Rychlý, thesis supervisor, for guidance and support throughout the project
 - [Attic](https://github.com/zhaofengli/attic) implementation, which provided inspiration
 - [OpenDHT](https://github.com/savoirfairelinux/opendht) for the distributed networking capabilities
