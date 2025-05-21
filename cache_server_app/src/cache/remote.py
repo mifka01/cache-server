@@ -93,8 +93,8 @@ class RemoteCacheHelper:
         response = ""
         for key in ordered_keys:
             value = narinfo_dict.get(key, "")
-            if key == "References" and value:
-                value = " ".join(value)
+            if key == "References":
+                value = " ".join(value) if value else " "
             response += f"{key}: {value}\n"
 
         return response.encode()

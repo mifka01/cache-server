@@ -314,7 +314,8 @@ class BinaryCache:
                 continue
 
             if line.startswith("References:"):
-                result["References"] = line.split(": ", 1)[1].split(" ")
+                refs = line.split(": ", 1)[1]
+                result["References"] = refs.split(" ") if refs and refs != " " else []
                 continue
 
             try:
@@ -323,7 +324,7 @@ class BinaryCache:
             except ValueError:
                 continue
 
-        if all(result[key] for key in result):
+        if all(result[key] or result["References"] == [] for key in result):
             return result
 
         return None
