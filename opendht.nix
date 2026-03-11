@@ -53,6 +53,14 @@ python.pkgs.buildPythonPackage rec {
     ];
 
     buildPhase = ''
+        # Compatibility patch for newer standalone asio API.
+        # Newer versions remove io_context::post and address::from_string.
+        if [ -f src/peer_discovery.cpp ]; then
+          substituteInPlace src/peer_discovery.cpp \
+            --replace-fail "asio::ip::address::from_string(" "asio::ip::make_address(" \
+            --replace-fail "ioContext_->post(" "asio::post(*ioContext_, "
+        fi
+
         # prefix is used for rpath of .so file
         bash ./autogen.sh && ./configure --disable-tools --prefix="$out"
 
@@ -76,4 +84,3 @@ python.pkgs.buildPythonPackage rec {
 
     doCheck = false;
 }
-
