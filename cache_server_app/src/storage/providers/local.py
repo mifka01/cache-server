@@ -10,7 +10,7 @@ Date: 5.12.2024
 
 import os
 import shutil
-from typing import Dict, Iterator
+from typing import Dict, Generator
 from datetime import datetime, timezone
 
 from cache_server_app.src.storage.base import Readable, Storage, StorageConfig
@@ -90,7 +90,7 @@ class LocalStorage(Storage):
         with open(self._full_path(path), "wb") as f:
             shutil.copyfileobj(reader, f, STREAM_CHUNK_SIZE)
 
-    def read_stream(self, path: str) -> Iterator[bytes]:
+    def read_stream(self, path: str) -> Generator[bytes, None, None]:
         with open(self._full_path(path), "rb") as f:
             while chunk := f.read(STREAM_CHUNK_SIZE):
                 yield chunk

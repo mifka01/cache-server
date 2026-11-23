@@ -178,7 +178,7 @@ class CacheCommands(BaseCommand):
                     f"ERROR: Binary cache {new_name} already exists. Name won't be changed."
                 )
 
-        if retention:
+        if retention is not None:
             cache.retention = retention
 
         if port:

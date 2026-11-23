@@ -11,7 +11,7 @@ Date: 5.12.2024
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Iterator, List, Literal, Optional, Protocol, overload
+from typing import Dict, Generator, List, Literal, Optional, Protocol, overload
 import os
 
 
@@ -165,7 +165,7 @@ class Storage(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def read_stream(self, path: str) -> Iterator[bytes]:
+    def read_stream(self, path: str) -> Generator[bytes, None, None]:
         """Yield the content of a file in chunks.
 
         Parameters:

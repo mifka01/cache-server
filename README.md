@@ -99,13 +99,14 @@ requests URLs chosen by strangers; only enable it on a DHT network you control.
 Remote narinfos are forwarded unchanged, so clients must trust the remote cache's
 own signing key.
 
-Caches and storages that are no longer listed in the config are kept, with their
-store paths, but not started; the server logs a warning for each. Set
-`remove-unlisted-caches: true` to delete them instead (their files stay on disk).
+Caches that are no longer listed in the config are kept, with their store paths,
+but not started; storages missing from a listed cache are kept and stay in use.
+The server logs a warning for each. Set `remove-unlisted-caches: true` to delete
+them instead (their files stay on disk).
 
 Every 12 hours each cache removes store paths older than its `retention` (days,
 measured from upload) unless a newer path still references them, directly or
-through other paths. A retention of 0 or less keeps paths forever.
+through other paths. A retention of 0 keeps paths forever.
 
 
 ### 📦 Cache Instances

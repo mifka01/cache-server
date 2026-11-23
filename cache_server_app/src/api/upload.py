@@ -10,6 +10,7 @@ stored as separate files and concatenated when the upload completes.
 """
 
 import hashlib
+import uuid
 from typing import Iterator
 
 from cache_server_app.src.storage.base import Readable, Storage
@@ -20,6 +21,11 @@ NIX_BASE32_ALPHABET = "0123456789abcdfghijklmnpqrsvwxyz"
 def part_name(nar_id: str, part_number: int) -> str:
     """Storage file name of one uploaded part."""
     return f"{nar_id}.part{part_number}"
+
+
+def staging_name(nar_id: str) -> str:
+    """Unique temporary file of an upload, renamed into place once it is verified."""
+    return f"{nar_id}.staging-{uuid.uuid4().hex}"
 
 
 def etag(md5_hex: str) -> str:

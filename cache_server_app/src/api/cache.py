@@ -10,7 +10,9 @@ Date: 17.4.2025
 """
 
 import base64
+import http.client
 import re
+import urllib.error
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Tuple, Any
 from urllib.parse import parse_qs, urlsplit
@@ -19,12 +21,13 @@ import time
 import cache_server_app.src.config.base as config
 from cache_server_app.src.api.constants import MAX_UPLOAD_PART_SIZE
 from cache_server_app.src.api.request import RequestError, body_length
-from cache_server_app.src.api.upload import BodyReader, etag, part_name
+from cache_server_app.src.api.upload import BodyReader, etag, part_name, staging_name
 from cache_server_app.src.api.validation import parse_part_number
 from cache_server_app.src.auth import basic_auth_password, tokens_match
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.cache.remote import RemoteCacheHelper
 from cache_server_app.src.storage.base import Storage
+from cache_server_app.src.storage.constants import STREAM_CHUNK_SIZE
 from cache_server_app.src.store_path import StorePath
 
 class HTTPBinaryCache(ThreadingHTTPServer):
@@ -54,6 +57,9 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
         try:
             size = storage.size(name)
             chunks = storage.read_stream(name)
+            # read_stream is lazy: take the first chunk so the file is open (and a
+            # missing file fails) before the 200 goes out.
+            first = next(chunks, b"")
         except (OSError, ValueError) as e:
             print(f"Error reading local nar file: {e}")
             return False
@@ -63,10 +69,13 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(size))
         self.end_headers()
         try:
+            self.wfile.write(first)
             for chunk in chunks:
                 self.wfile.write(chunk)
         except (BrokenPipeError, ConnectionResetError):
             print(f"Client disconnected while downloading {name}")
+        finally:
+            chunks.close()
         return True
 
     def do_GET(self) -> None:
@@ -183,26 +192,33 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
             if nar_path in self.server.remote.cached_paths:
                 remote_cache_url = self.server.remote.cached_paths[nar_path]
-                response, status = self.server.remote.fetch_remote_nar_file(
-                    file_hash,
-                    compression,
-                    remote_cache_url,
-                )
-
-                if not response:
-                    self.send_response(status)
-                    self.end_headers()
-                    response_time = time.time() - start_time
-                    self.server.cache.metrics.record_request(False, response_time)
+                try:
+                    upstream = self.server.remote.open_remote_nar_file(file_hash, compression, remote_cache_url)
+                except urllib.error.HTTPError as e:
+                    print(f"ERROR: Failed to fetch remote nar file: {e}")
+                    status = e.code
+                except OSError as e:
+                    print(f"ERROR: Failed to fetch remote nar file: {e}")
+                    status = 502
+                else:
+                    with upstream:
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/octet-stream")
+                        length = upstream.headers.get("Content-Length")
+                        if length is not None:
+                            self.send_header("Content-Length", length)
+                        self.end_headers()
+                        try:
+                            while chunk := upstream.read(STREAM_CHUNK_SIZE):
+                                self.wfile.write(chunk)
+                        except (OSError, http.client.HTTPException) as e:
+                            print(f"ERROR: Streaming remote nar file failed: {e}")
+                    self.server.cache.metrics.record_request(False, time.time() - start_time)
                     return
 
                 self.send_response(status)
-                self.send_header("Content-Type", "application/octet-stream")
-                self.send_header("Content-Length", str(len(response)))
                 self.end_headers()
-                self.wfile.write(response)
-                response_time = time.time() - start_time
-                self.server.cache.metrics.record_request(False, response_time)
+                self.server.cache.metrics.record_request(False, time.time() - start_time)
                 return
 
             self.send_response(404)
@@ -244,17 +260,24 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
         length = body_length(self.headers, MAX_UPLOAD_PART_SIZE)
         name = part_name(nar_id, part_number)
+        # Written under a unique name first, so a failed retry can't replace a part
+        # that was already accepted, and completion never sees a half-written part.
+        staging = staging_name(nar_id)
         reader = BodyReader(self.rfile, length)
-        storage.write_stream(name, reader)
+        try:
+            storage.write_stream(staging, reader)
 
-        expected_md5 = self.headers.get("Content-MD5")
-        if reader.remaining:
-            storage.remove(name)
-            raise RequestError(400, f"part {name} ended {reader.remaining} bytes early")
-        if expected_md5 is not None and expected_md5.strip() != base64.b64encode(reader.md5.digest()).decode():
-            storage.remove(name)
-            raise RequestError(400, f"part {name} does not match Content-MD5")
+            expected_md5 = self.headers.get("Content-MD5")
+            if reader.remaining:
+                raise RequestError(400, f"part {name} ended {reader.remaining} bytes early")
+            if expected_md5 is not None and expected_md5.strip() != base64.b64encode(reader.md5.digest()).decode():
+                raise RequestError(400, f"part {name} does not match Content-MD5")
+        except BaseException:
+            if storage.exists(staging):
+                storage.remove(staging)
+            raise
 
+        storage.rename(staging, name)
         return {"ETag": etag(reader.md5.hexdigest()), "Content-Location": "/"}
 
     def do_HEAD(self) -> None:

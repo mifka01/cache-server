@@ -9,6 +9,7 @@ Author: Radim Mifka
 Date: 25.4.2025
 """
 
+import http.client
 import json
 import urllib.request
 import urllib.error
@@ -111,30 +112,9 @@ class RemoteCacheHelper:
             print(f"ERROR: Unexpected error fetching narinfo: {e}")
             return None, 500
 
-    def fetch_remote_nar_file(self, file_hash: str, compression: str, remote_cache_url: str) -> tuple[bytes | None, int]:
-        """Fetch nar file from remote cache."""
+    def open_remote_nar_file(self, file_hash: str, compression: str, remote_cache_url: str) -> http.client.HTTPResponse:
+        """Open the NAR on a remote cache for streaming; raises OSError (incl. HTTPError) when it can't."""
         nar_path = f"nar/{file_hash}.nar.{compression}"
-        try:
-            remote_url = f"{remote_cache_url}/{nar_path}"
-            with urllib.request.urlopen(remote_url, timeout=HTTP_TIMEOUT) as resp:
-                if resp.status != 200:
-                    return None, resp.status
-
-                nar_data = resp.read()
-
-                # maybe try to save the file locally to avoid future redirects ???
-                # try:
-                #     self.cache.storage.save(f"{file_hash}.nar.{compression}", nar_data)
-                # except Exception as cache_err:
-                #     print(f"Failed to cache remote nar file locally: {cache_err}")
-
-                if nar_path in self.cached_paths:
-                    self.cached_paths.pop(nar_path)
-
-                return nar_data, 200
-        except urllib.error.URLError as e:
-            print(f"ERROR: Failed to fetch remote nar file: {e}")
-            return None, 502
-        except Exception as e:
-            print(f"ERROR: Unexpected error fetching nar file: {e}")
-            return None, 500
+        response: http.client.HTTPResponse = urllib.request.urlopen(f"{remote_cache_url}/{nar_path}", timeout=HTTP_TIMEOUT)
+        self.cached_paths.pop(nar_path, None)
+        return response

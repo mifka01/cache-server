@@ -24,7 +24,7 @@ from typing import Any, Tuple
 
 from cache_server_app.src.agent import Agent
 from cache_server_app.src.api.request import RequestError, read_json
-from cache_server_app.src.api.upload import PartsReader, file_hash_matches, normalize_etag, part_name
+from cache_server_app.src.api.upload import PartsReader, file_hash_matches, normalize_etag, part_name, staging_name
 from cache_server_app.src.api.validation import parse_completed_parts, parse_narinfo_create, parse_part_number
 from cache_server_app.src.auth import bearer_token, tokens_match
 from cache_server_app.src.cache.base import BinaryCache
@@ -299,40 +299,51 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
         if missing:
             raise RequestError(400, f"upload {nar_id}: parts not uploaded: {', '.join(missing)}")
 
+        # Assembled under a unique name, so overlapping completions (client retries)
+        # each publish exactly the bytes they verified.
+        staging = staging_name(nar_id)
         reader = PartsReader(storage, names)
-        storage.write_stream(placeholder, reader)
+        try:
+            storage.write_stream(staging, reader)
 
-        problem = None
-        if [normalize_etag(tag) for _, tag in parts] != reader.part_md5s:
-            problem = "part ETags do not match the uploaded parts"
-        elif reader.size != narinfo_create.file_size:
-            problem = f"assembled {reader.size} bytes, narinfo says {narinfo_create.file_size}"
-        elif not file_hash_matches(narinfo_create.file_hash, reader.sha256.digest()):
-            problem = "assembled NAR does not match cFileHash"
-        if problem:
-            storage.save(placeholder, b"")
-            raise RequestError(400, f"upload {nar_id}: {problem}")
+            if [normalize_etag(tag) for _, tag in parts] != reader.part_md5s:
+                raise RequestError(400, f"upload {nar_id}: part ETags do not match the uploaded parts")
+            if reader.size != narinfo_create.file_size:
+                raise RequestError(400, f"upload {nar_id}: assembled {reader.size} bytes, narinfo says {narinfo_create.file_size}")
+            if not file_hash_matches(narinfo_create.file_hash, reader.sha256.digest()):
+                raise RequestError(400, f"upload {nar_id}: assembled NAR does not match cFileHash")
+        except BaseException:
+            if storage.exists(staging):
+                storage.remove(staging)
+            raise
 
         compression = placeholder.rsplit(".", 1)[1]
-        storage.rename(placeholder, f"{narinfo_create.file_hash}.nar.{compression}")
-        for name in names:
-            storage.remove(name)
+        storage.rename(staging, f"{narinfo_create.file_hash}.nar.{compression}")
 
-        StorePath(
-            id=str(uuid.uuid4()),
-            store_hash=narinfo_create.store_hash,
-            store_suffix=narinfo_create.store_suffix,
-            file_hash=narinfo_create.file_hash,
-            file_size=narinfo_create.file_size,
-            nar_hash=narinfo_create.nar_hash,
-            nar_size=narinfo_create.nar_size,
-            deriver=narinfo_create.deriver,
-            references=narinfo_create.references,
-            storage=storage
-        ).save()
+        if cache.storage.get_store_path(store_hash=narinfo_create.store_hash) is None:
+            StorePath(
+                id=str(uuid.uuid4()),
+                store_hash=narinfo_create.store_hash,
+                store_suffix=narinfo_create.store_suffix,
+                file_hash=narinfo_create.file_hash,
+                file_size=narinfo_create.file_size,
+                nar_hash=narinfo_create.nar_hash,
+                nar_size=narinfo_create.nar_size,
+                deriver=narinfo_create.deriver,
+                references=narinfo_create.references,
+                storage=storage
+            ).save()
 
         if cache.is_public():
             self.server.dht.put(narinfo_create.store_hash, cache.id)
+
+        # Only after publishing: the parts are no longer needed, and garbage
+        # collection removes whatever an interrupted cleanup leaves behind.
+        for name in [placeholder, *names]:
+            try:
+                storage.remove(name)
+            except OSError as e:
+                print(f"WARNING: Could not remove {name} of completed upload {nar_id}: {e}")
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

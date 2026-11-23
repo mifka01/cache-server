@@ -106,8 +106,8 @@ class ConfigValidator:
 
             if "retention" in cache:
                 retention = cache["retention"]
-                if not isinstance(retention, int) or retention <= 0:
-                    self.errors.append(f"Cache '{name}': retention must be a positive integer")
+                if not isinstance(retention, int) or isinstance(retention, bool) or retention < 0:
+                    self.errors.append(f"Cache '{name}': retention must be a non-negative integer (0 keeps paths forever)")
 
             if "storage-strategy" in cache:
                 strategy = cache["storage-strategy"]

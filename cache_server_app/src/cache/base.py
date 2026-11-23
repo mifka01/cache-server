@@ -246,14 +246,14 @@ class BinaryCache:
         by_name = {f"{row[1]}-{row[2]}": row for row in rows}
 
         live: List[str] = []
-        expired = []
+        expired: List[StorePathRow] = []
         for row in rows:
             storage = self.storage.get_storage(row[9])
             nar_file = nar_files.get(row[9], {}).get(row[3])
             if storage and nar_file and storage.get_file_creation_time(nar_file) > cutoff:
                 live.append(f"{row[1]}-{row[2]}")
             else:
-                expired.append((row, storage, nar_file))
+                expired.append(row)
 
         keep = set()
         while live:
@@ -265,25 +265,33 @@ class BinaryCache:
             if referrer and referrer[8]:
                 live.extend(referrer[8].split(" "))
 
-        for row, storage, nar_file in expired:
+        for row in expired:
             if f"{row[1]}-{row[2]}" in keep:
                 continue
             print(f"Removing expired store path {row[1]}-{row[2]} from cache {self.name}")
-            if storage and nar_file:
-                storage.remove(nar_file)
+            # The NAR file goes in the orphan sweep: another store path may share it.
             self.database.delete_store_path(row[1], row[9])
 
     def _remove_orphaned_files(self, rows: List[StorePathRow]) -> None:
-        """Remove files no store path refers to, except keys and recent ones (uploads in progress)."""
+        """Remove files no store path refers to, except keys and recent uploads.
+
+        Files are grouped by the name part before the first dot: a NAR's file hash, or
+        an upload's id shared by its placeholder and parts. An upload is kept while any
+        of its files is recent, so a slow upload doesn't lose its early parts.
+        """
         referenced = {(row[9], row[3]) for row in rows}
         for storage in self.storage.storages:
+            groups: Dict[str, List[str]] = {}
             for name in storage.list():
-                if name.startswith("key.") or (storage.id, name.split(".", 1)[0]) in referenced:
+                if not name.startswith("key."):
+                    groups.setdefault(name.split(".", 1)[0], []).append(name)
+
+            for prefix, names in groups.items():
+                if (storage.id, prefix) in referenced or any(storage.is_new_file(name) for name in names):
                     continue
-                if storage.is_new_file(name):
-                    continue
-                print(f"Removing file {name} from storage {storage.name}")
-                storage.remove(name)
+                for name in names:
+                    print(f"Removing file {name} from storage {storage.name}")
+                    storage.remove(name)
 
     def generate_keys(self) -> None:
         sk, pk = ed25519.create_keypair()

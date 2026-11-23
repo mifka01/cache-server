@@ -192,7 +192,7 @@ class ConfigManager:
                     print(f"Deleting storage {storage.name} of binary cache {name}, which is not in the configuration.")
                     cache_instance.storage.remove_storage(name=storage.name)
                 else:
-                    print(f"WARNING: Storage {storage.name} of binary cache {name} is not in the configuration; keeping it. Set server.remove-unlisted-caches to delete it.")
+                    print(f"WARNING: Storage {storage.name} of binary cache {name} is not in the configuration; keeping it in use. Set server.remove-unlisted-caches to delete it.")
 
         for workspace in Workspace.get_rows():
             name = workspace[1]

@@ -9,7 +9,7 @@ Date: 5.12.2024
 """
 
 import os
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Generator, Iterator
 from datetime import datetime, timezone
 
 import boto3
@@ -122,10 +122,12 @@ class S3Storage(Storage):
         full_new_path = os.path.join(self.storage_path, new_name).lstrip("/")
 
         try:
-            self.s3_client.copy_object(
-                Bucket=self.bucket,
-                CopySource={"Bucket": self.bucket, "Key": full_old_path},
-                Key=full_new_path,
+            # Managed copy: switches to multipart copy for objects over 5 GB,
+            # which a single CopyObject call rejects.
+            self.s3_client.copy(
+                {"Bucket": self.bucket, "Key": full_old_path},
+                self.bucket,
+                full_new_path,
             )
 
             self.s3_client.delete_object(Bucket=self.bucket, Key=full_old_path)
@@ -138,7 +140,7 @@ class S3Storage(Storage):
         except ClientError as e:
             raise IOError(f"Error saving file {path}: {e}")
 
-    def read_stream(self, path: str) -> Iterator[bytes]:
+    def read_stream(self, path: str) -> Generator[bytes, None, None]:
         try:
             body = self.s3_client.get_object(Bucket=self.bucket, Key=self._key(path))["Body"]
         except ClientError as e:
