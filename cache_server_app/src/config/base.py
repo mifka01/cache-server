@@ -46,6 +46,9 @@ try:
     # Serve narinfos/NARs of other caches found through the DHT. Off by default: DHT
     # entries are written by anyone, so this makes the server fetch attacker-chosen URLs.
     remote_fallback = server_config.get("remote-fallback", False)
+    # Delete caches (and storages) that are no longer in the config, with their store
+    # paths. Off by default so a typo in a cache name doesn't drop its contents.
+    remove_unlisted_caches = server_config.get("remove-unlisted-caches", False)
 
     default_retention = int(server_config.get("default-retention", 4))
     default_port = int(server_config.get("default-port", 8080))

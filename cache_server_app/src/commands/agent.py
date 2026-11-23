@@ -10,7 +10,7 @@ Date: 30.3.2025
 
 import sys
 import uuid
-from typing import Any, Callable
+from typing import Callable
 
 from cache_server_app.src.agent import Agent
 from cache_server_app.src.auth import generate_token
@@ -20,6 +20,8 @@ from cache_server_app.src.workspace import Workspace
 
 class AgentCommands(BaseCommand):
     """Handles all agent-related commands."""
+
+    name = "agent"
 
     def add(self, name: str, workspace_name: str) -> None:
         """Add a new agent to a workspace."""
@@ -35,8 +37,8 @@ class AgentCommands(BaseCommand):
         agent_id = str(uuid.uuid1())
         Agent(agent_id, name, generate_token(), workspace).save()
 
-    def remove(self, name: str) -> None:
-        """Remove an agent."""
+    def delete(self, name: str) -> None:
+        """Delete an agent."""
         agent = Agent.get(name=name)
         if not agent:
             print(f"ERROR: Agent {name} does not exist.")
@@ -79,17 +81,11 @@ class AgentCommands(BaseCommand):
         output = f"Id: {agent.id}\nName: {agent.name}\nToken: {agent.token}\nWorkspace: {agent.workspace.name}\n"
         print(output)
 
-    def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
-        """Execute the specified agent command."""
-        commands: dict[str, Callable[..., None]] = {
+    def handlers(self) -> dict[str, Callable[..., None]]:
+        return {
             "add": self.add,
-            "remove": self.remove,
+            "delete": self.delete,
             "list": self.list,
             "info": self.info,
             "workspace": self.workspace,
         }
-
-        if command not in commands:
-            raise ValueError(f"Unknown agent command: {command}")
-
-        commands[command](*args, **kwargs) 

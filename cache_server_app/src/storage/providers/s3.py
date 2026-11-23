@@ -9,17 +9,17 @@ Date: 5.12.2024
 """
 
 import os
-from typing import Dict
+from typing import Any, Dict, Iterator
 from datetime import datetime, timezone
 
 import boto3
 from botocore.exceptions import ClientError
 import sys
 
-from cache_server_app.src.storage.base import Storage, StorageConfig
+from cache_server_app.src.storage.base import Readable, Storage, StorageConfig
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.storage.type import StorageType
-from cache_server_app.src.storage.constants import CONSIDERED_NEW_FILE_AGE
+from cache_server_app.src.storage.constants import CONSIDERED_NEW_FILE_AGE, STREAM_CHUNK_SIZE
 
 
 @StorageRegistry.register(StorageType.S3)
@@ -65,6 +65,15 @@ class S3Storage(Storage):
     def get_type(self) -> str:
         return StorageType.S3
 
+    def _key(self, path: str) -> str:
+        return os.path.join(self.storage_path, path).lstrip("/")
+
+    def _objects(self) -> Iterator[dict[str, Any]]:
+        """All objects under the storage prefix; list_objects_v2 returns at most 1000 per page."""
+        paginator = self.s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=self.storage_path):
+            yield from page.get("Contents", [])
+
 
     def new_file(self, path: str, data: bytes = b"") -> None:
         full_path = os.path.join(self.storage_path, path).lstrip("/")
@@ -92,9 +101,7 @@ class S3Storage(Storage):
 
     def clear(self) -> None:
         try:
-            response = self.s3_client.list_objects_v2(Bucket=self.bucket, Prefix=self.storage_path)
-
-            for obj in response.get("Contents", []):
+            for obj in self._objects():
                 self.s3_client.delete_object(Bucket=self.bucket, Key=obj["Key"])
         except ClientError as e:
             raise IOError(f"Error clearing storage: {e}")
@@ -125,15 +132,39 @@ class S3Storage(Storage):
         except ClientError as e:
             raise IOError(f"Error renaming file from {path} to {new_name}: {e}")
 
+    def write_stream(self, path: str, reader: Readable) -> None:
+        try:
+            self.s3_client.upload_fileobj(reader, self.bucket, self._key(path))
+        except ClientError as e:
+            raise IOError(f"Error saving file {path}: {e}")
+
+    def read_stream(self, path: str) -> Iterator[bytes]:
+        try:
+            body = self.s3_client.get_object(Bucket=self.bucket, Key=self._key(path))["Body"]
+        except ClientError as e:
+            raise IOError(f"Error reading file {path}: {e}")
+        yield from body.iter_chunks(STREAM_CHUNK_SIZE)
+
+    def size(self, path: str) -> int:
+        try:
+            return int(self.s3_client.head_object(Bucket=self.bucket, Key=self._key(path))["ContentLength"])
+        except ClientError as e:
+            raise IOError(f"Error getting size of file {path}: {e}")
+
+    def exists(self, path: str) -> bool:
+        try:
+            self.s3_client.head_object(Bucket=self.bucket, Key=self._key(path))
+            return True
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+                return False
+            raise IOError(f"Error checking file {path}: {e}")
+
     def list(self) -> list[str]:
         try:
-            response = self.s3_client.list_objects_v2(
-                Bucket=self.bucket, Prefix=self.storage_path
-            )
-
             return [
                 obj["Key"][len(self.storage_path) :]
-                for obj in response.get("Contents", [])
+                for obj in self._objects()
                 if obj["Key"] != self.storage_path
             ]
         except ClientError as e:
@@ -161,11 +192,7 @@ class S3Storage(Storage):
 
     def find(self, name: str, strict: bool = False) -> str | None:
         try:
-            response = self.s3_client.list_objects_v2(
-                Bucket=self.bucket, Prefix=self.storage_path
-            )
-
-            for obj in response.get("Contents", []):
+            for obj in self._objects():
                 file_path = obj["Key"][len(self.storage_path) :]
 
                 if strict and file_path == name:
@@ -184,13 +211,7 @@ class S3Storage(Storage):
     def get_used_space(self) -> int:
         """Get the used space in bytes."""
         try:
-            response = self.s3_client.list_objects_v2(
-                Bucket=self.bucket, Prefix=self.storage_path
-            )
-            total_size = sum(
-                obj["Size"] for obj in response.get("Contents", [])
-            )
-            return total_size
+            return sum(int(obj["Size"]) for obj in self._objects())
         except ClientError as e:
             raise IOError(f"Error getting used space: {e}")
 

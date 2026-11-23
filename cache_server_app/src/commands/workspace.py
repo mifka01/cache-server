@@ -10,7 +10,7 @@ Date: 30.3.2025
 
 import sys
 import uuid
-from typing import Any, Callable
+from typing import Callable
 
 from cache_server_app.src.auth import generate_token
 from cache_server_app.src.cache.base import BinaryCache
@@ -20,6 +20,8 @@ from cache_server_app.src.workspace import Workspace
 
 class WorkspaceCommands(BaseCommand):
     """Handles all workspace-related commands."""
+
+    name = "workspace"
 
     def create(self, name: str, cache_name: str) -> None:
         """Create a new workspace."""
@@ -75,17 +77,11 @@ class WorkspaceCommands(BaseCommand):
         workspace.cache = cache
         workspace.update()
 
-    def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
-        """Execute the specified workspace command."""
-        commands: dict[str, Callable[..., None]] = {
+    def handlers(self) -> dict[str, Callable[..., None]]:
+        return {
             "create": self.create,
             "delete": self.delete,
             "list": self.list,
             "info": self.info,
             "cache": self.cache,
         }
-
-        if command not in commands:
-            raise ValueError(f"Unknown workspace command: {command}")
-
-        commands[command](*args, **kwargs)

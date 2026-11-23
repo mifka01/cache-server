@@ -11,13 +11,15 @@ Date: 30.3.2025
 import os
 import sys
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Callable
 
 from cache_server_app.src.database import CacheServerDatabase
 
 
 class BaseCommand(ABC):
     """Base class for all commands."""
+
+    name = "command"
 
     def __init__(self, database: CacheServerDatabase | None = None):
         self.database = database or CacheServerDatabase()
@@ -53,6 +55,16 @@ class BaseCommand(ABC):
             sys.exit(1)
 
     @abstractmethod
-    def execute(self, *args: Any, **kwargs: Any) -> None:
-        """Execute the command."""
-        pass 
+    def handlers(self) -> dict[str, Callable[..., None]]:
+        """Subcommand names mapped to the methods that run them."""
+
+    def handler(self, command: str) -> Callable[..., None]:
+        """The method running a subcommand; raises ValueError for unknown ones."""
+        handlers = self.handlers()
+        if command not in handlers:
+            raise ValueError(f"Unknown {self.name} command: {command}")
+        return handlers[command]
+
+    def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
+        """Execute the specified subcommand."""
+        self.handler(command)(*args, **kwargs)

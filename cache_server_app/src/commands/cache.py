@@ -11,7 +11,7 @@ Date: 30.3.2025
 import os
 import sys
 import uuid
-from typing import Any, Callable, Dict, List
+from typing import Callable, Dict, List
 import signal
 import threading
 
@@ -28,6 +28,8 @@ from cache_server_app.src.storage.manager import StorageManager
 
 class CacheCommands(BaseCommand):
     """Handles all cache-related commands."""
+
+    name = "cache"
 
     def create(self, name: str, port: int, access:str, retention: int | None, storage_strategy: str, storages: List[Dict[str, str | Dict[str, str]]]) -> None:
         """Create a new binary cache."""
@@ -138,16 +140,11 @@ class CacheCommands(BaseCommand):
             sys.exit(1)
 
         for workspace in self.database.get_workspace_list():
-            if name == workspace[3]:
+            if workspace[3] == cache.id:
                 print(
                     f"ERROR: Binary cache {name} is connected to workspace {workspace[1]}."
                 )
                 sys.exit(1)
-        #
-        # pid_file = f"/var/run/{cache.id}.pid"
-        # if self.get_pid(pid_file):
-        #     print(f"ERROR: Binary cache {name} is running.")
-        #     sys.exit(1)
 
         cache.delete()
 
@@ -170,11 +167,9 @@ class CacheCommands(BaseCommand):
             cache.access = CacheAccess(access)
 
         if new_name:
-            if not BinaryCache.get(new_name):
-                # !! TODO !!
-                # os.rename(cache.cache_dir, os.path.join(config.cache_dir, new_name))
-                cache.update_workspaces(new_name)
-                cache.update_paths(new_name)
+            # Workspaces reference the cache by id and storages keep their directories,
+            # so renaming only changes the name, URL and token.
+            if not BinaryCache.exist(name=new_name):
                 cache.name = new_name
                 cache.url = f"http://{new_name}.{config.server_hostname}"
                 cache.token = generate_token()
@@ -235,11 +230,8 @@ class CacheCommands(BaseCommand):
         )
         print(output)
 
-
-    def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
-        """Execute the specified cache command."""
-
-        commands: dict[str, Callable[..., None]] = {
+    def handlers(self) -> dict[str, Callable[..., None]]:
+        return {
             "create": self.create,
             "start": self.start,
             "stop": self.stop,
@@ -248,8 +240,3 @@ class CacheCommands(BaseCommand):
             "list": self.list,
             "info": self.info,
         }
-
-        if command not in commands:
-            raise ValueError(f"Unknown cache command: {command}")
-
-        commands[command](*args, **kwargs)

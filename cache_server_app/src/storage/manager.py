@@ -20,6 +20,7 @@ from cache_server_app.src.storage.factory import StorageFactory
 from cache_server_app.src.storage.type import StorageType
 from cache_server_app.src.types import StorePathRow
 from cache_server_app.src.storage.strategies import Strategy
+from cache_server_app.src.storage.constants import UPLOAD_COMPRESSIONS
 
 class StorageManager:
     def __init__(self, cache_id: str, storages: List[Storage], strategy: str, strategy_state: dict = {}, database: Optional[CacheServerDatabase] = None) -> None:
@@ -59,9 +60,11 @@ class StorageManager:
             self.database.insert_storage_config(storage.id, key, value)
 
     def remove_storage(self, id: str | None = None, name: str | None = None) -> None:
+        """Forget a storage and its store paths; its files stay on disk/S3."""
         for i, storage in enumerate(self.storages):
             if storage.id == id or storage.name == name:
                 self.storages.pop(i)
+                self.database.delete_storage_store_paths(storage.id)
                 self.database.delete_storage(storage.id)
                 self.database.delete_storage_config(storage.id)
                 break
@@ -114,7 +117,10 @@ class StorageManager:
     def read(self, path: str) -> str: ...
 
     def read(self, path: str, binary: bool = False) -> str | bytes:
-        storage = self._choose_storage()
+        """Read a file from the first storage holding it (keys are written to every storage)."""
+        storage = next((storage for storage in self.storages if storage.exists(path)), None)
+        if storage is None:
+            raise FileNotFoundError(f"File {path} is not in any storage")
 
         # for mypy to understand the overload
         if binary:
@@ -122,24 +128,18 @@ class StorageManager:
         else:
             return storage.read(path, False)
 
-    def find(self, path: str) -> Optional[Tuple[str, Storage]]:
+    def find_upload(self, nar_id: str) -> Optional[Tuple[str, Storage]]:
+        """Find the placeholder `{nar_id}.nar.{xz|zst}` of a multipart upload and its storage."""
         for storage in self.storages:
-            finding = storage.find(path)
-            if finding:
-                return finding, storage
+            for compression in UPLOAD_COMPRESSIONS:
+                name = f"{nar_id}.nar.{compression}"
+                if storage.exists(name):
+                    return name, storage
         return None
-
-    def remove(self, path: str) -> None:
-        storage = self._choose_storage()
-        storage.remove(path)
-
-    def rename(self, path: str, new_path: str) -> None:
-        storage = self._choose_storage()
-        storage.rename(path, new_path)
 
     def delete(self) -> None:
         """Delete all storages and its content from the disk and database"""
-        for storage in self.storages:
+        for storage in list(self.storages):
             self.remove_storage(storage.id)
 
     def get_available_space(self) -> int:

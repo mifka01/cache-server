@@ -37,11 +37,11 @@ def add_workspace_create_parser(
     subparsers: _SubParsersAction,
 ) -> None:
     workspace_create_parser = subparsers.add_parser(
-        "add", description="Create workspace", help="Create workspace"
+        "create", description="Create workspace", help="Create workspace"
     )
 
     workspace_create_parser.add_argument("name", type=str, help="Workspace name")
-    workspace_create_parser.add_argument("cache", type=str, help="Binary cache name")
+    workspace_create_parser.add_argument("cache_name", metavar="cache", type=str, help="Binary cache name")
 
 
 # workspace delete
@@ -83,4 +83,4 @@ def add_workspace_cache_parser(
         help="Change workspace binary cache",
     )
     workspace_cache_parser.add_argument("name", help="Workspace name")
-    workspace_cache_parser.add_argument("cache", help="New workspace binary cache")
+    workspace_cache_parser.add_argument("cache_name", metavar="cache", help="New workspace binary cache")

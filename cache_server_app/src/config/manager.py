@@ -39,7 +39,7 @@ class ConfigManager:
     def __init__(self) -> None:
         self.registry = CommandRegistry()
         self.existing_caches: Set[str] = set()
-        self.existing_storages: Set[str] = set()
+        self.existing_storages: Dict[str, Set[str]] = {}
         self.existing_workspaces: Set[str] = set()
         self.existing_agents: Set[str] = set()
 
@@ -54,7 +54,7 @@ class ConfigManager:
             Tuple of (success, errors)
         """
         self.existing_caches = set()
-        self.existing_storages = set()
+        self.existing_storages = {}
         self.existing_workspaces = set()
         self.existing_agents = set()
 
@@ -116,7 +116,7 @@ class ConfigManager:
                 if split is not None:
                     splits.append(split)
 
-            self.existing_storages.add(storage_name)
+            self.existing_storages.setdefault(cache_name, set()).add(storage_name)
 
             storage_config = self._get_storage_config(storage, storage_type)
             existing_storage = cache.storage.get_storage(name=storage_name)
@@ -165,7 +165,11 @@ class ConfigManager:
                     self._create_agent(name, agent_config)
 
     def _remove_orphaned_resources(self) -> None:
-        """Remove resources that are no longer defined in the configuration."""
+        """Remove resources that are no longer defined in the configuration.
+
+        Caches and storages hold store paths, so they are only deleted when
+        `server.remove-unlisted-caches` is set; otherwise they are kept (not started).
+        """
         for cache in BinaryCache.get_rows():
             name = cache[1]
             cache_instance = BinaryCache.get(name=name)
@@ -173,11 +177,22 @@ class ConfigManager:
                 continue
 
             if name not in self.existing_caches:
-                cache_instance.delete()
-            else:
-                for storage in cache_instance.storage.storages:
-                    if storage.name not in self.existing_storages:
-                        cache_instance.storage.remove_storage(name=storage.name)
+                if config.remove_unlisted_caches:
+                    print(f"Deleting binary cache {name}, which is not in the configuration.")
+                    cache_instance.delete()
+                else:
+                    print(f"WARNING: Binary cache {name} is not in the configuration; keeping it and its store paths but not starting it. Set server.remove-unlisted-caches to delete it.")
+                continue
+
+            listed_storages = self.existing_storages.get(name, set())
+            for storage in list(cache_instance.storage.storages):
+                if storage.name in listed_storages:
+                    continue
+                if config.remove_unlisted_caches:
+                    print(f"Deleting storage {storage.name} of binary cache {name}, which is not in the configuration.")
+                    cache_instance.storage.remove_storage(name=storage.name)
+                else:
+                    print(f"WARNING: Storage {storage.name} of binary cache {name} is not in the configuration; keeping it. Set server.remove-unlisted-caches to delete it.")
 
         for workspace in Workspace.get_rows():
             name = workspace[1]

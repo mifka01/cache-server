@@ -393,12 +393,12 @@ class CacheServerDatabase:
             ;"""
         return self.execute_select(statement)
 
-    def get_workspace_agents(self, workspace_name: str) -> List[AgentRow]:
+    def get_workspace_agents(self, workspace_id: str) -> List[AgentRow]:
         statement = """
             SELECT * FROM agent
-            WHERE workspace_name=?
+            WHERE workspace_id=?
             ;"""
-        return self.execute_select(statement, (workspace_name,))
+        return self.execute_select(statement, (workspace_id,))
 
     def get_store_paths(self, storage_ids: List[str]) -> List[StorePathRow]:
         if not storage_ids:
@@ -504,6 +504,13 @@ class CacheServerDatabase:
             ;"""
         self.execute_statement(statement, (store_hash, storage_id))
 
+    def delete_storage_store_paths(self, storage_id: str) -> None:
+        statement = """
+            DELETE FROM store_path
+            WHERE storage_id=?
+            ;"""
+        self.execute_statement(statement, (storage_id,))
+
     def insert_workspace(
         self, workspace_id: str, name: str, token: str, cache_id: str
     ) -> None:
@@ -581,19 +588,3 @@ class CacheServerDatabase:
             ;"""
         params = (name, token, cache_id, id)
         self.execute_statement(statement, params)
-
-    def update_cache_in_workspaces(self, cache_id: str, new_cache: str) -> None:
-        statement = """
-            UPDATE workspace
-            SET cache_id=?
-            WHERE cache_id=?
-            ;"""
-        self.execute_statement(statement, (new_cache, cache_id))
-
-    def update_cache_in_paths(self, cache_name: str, new_name: str) -> None:
-        statement = """
-            UPDATE store_path
-            SET cache_name=?
-            WHERE cache_name=?
-            ;"""
-        self.execute_statement(statement, (new_name, cache_name))

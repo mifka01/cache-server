@@ -12,6 +12,8 @@ Date: 21.12.2024
 from argparse import _SubParsersAction
 
 import cache_server_app.src.config.base as config
+from cache_server_app.src.cache.access import CacheAccess
+from cache_server_app.src.storage.strategies import Strategy
 from cache_server_app.src.storage.type import StorageType
 
 
@@ -35,7 +37,9 @@ def add_cache_create_parser(
     subparsers: _SubParsersAction,
 ) -> None:
     cache_create_parser = subparsers.add_parser(
-        "create", description="Create binary cache", help="Create binary cache"
+        "create",
+        description="Create binary cache with a single storage",
+        help="Create binary cache",
     )
 
     cache_create_parser.add_argument("name", type=str, help="Binary cache name")
@@ -43,59 +47,40 @@ def add_cache_create_parser(
         "-p", "--port", type=int, help="Binary cache port", default=config.default_port
     )
     cache_create_parser.add_argument(
+        "-a", "--access", choices=CacheAccess.list(), help="Binary cache access", default=CacheAccess.PUBLIC.value
+    )
+    cache_create_parser.add_argument(
         "-r",
         "--retention",
         type=int,
-        help="Number of weeks after which paths will be removed",
+        help="Number of days after which paths will be removed",
         default=config.default_retention,
+    )
+    cache_create_parser.add_argument(
+        "--strategy",
+        dest="storage_strategy",
+        choices=[strategy.value for strategy in Strategy],
+        help="Storage strategy",
+        default=config.default_storage_strategy,
     )
     cache_create_parser.add_argument(
         "-s",
         "--storage",
+        dest="storage_type",
         choices=StorageType.list(),
         help="Binary cache storage type",
         default=config.default_storage,
     )
+    cache_create_parser.add_argument(
+        "--root", required=True, help="Storage root directory (S3: key prefix)"
+    )
 
     # S3-specific arguments
-    cache_create_parser.add_argument(
-        "--bucket",
-        help="S3 bucket name",
-    )
-    cache_create_parser.add_argument(
-        "--region",
-        help="S3 region",
-    )
-    cache_create_parser.add_argument(
-        "--access-key",
-        help="S3 access key",
-    )
-    cache_create_parser.add_argument(
-        "--secret-key",
-        help="S3 secret key",
-    )
+    cache_create_parser.add_argument("--bucket", help="S3 bucket name")
+    cache_create_parser.add_argument("--region", help="S3 region")
+    cache_create_parser.add_argument("--access-key", help="S3 access key")
+    cache_create_parser.add_argument("--secret-key", help="S3 secret key")
 
-
-# cache create name port -r retention local
-def add_cache_local_storage_parser(
-    subparsers: _SubParsersAction,
-) -> None:
-    storage_parser = subparsers.add_parser(
-        StorageType.LOCAL.value, description="Local storage", help="Local storage"
-    )
-
-# cache create name port -r retention s3
-def add_cache_s3_storage_parser(
-    subparsers: _SubParsersAction,
-) -> None:
-    storage_parser = subparsers.add_parser(
-        StorageType.S3.value, description="S3 storage", help="S3 storage"
-    )
-
-    storage_parser.add_argument("bucket", type=str, help="S3 bucket name")
-    storage_parser.add_argument("access_key", type=str, help="S3 access key")
-    storage_parser.add_argument("secret_key", type=str, help="S3 secret key")
-    storage_parser.add_argument("--region", type=str, help="S3 region")
 
 # cache start
 def add_cache_start_parser(
@@ -133,19 +118,23 @@ def add_cache_update_parser(
     )
 
     cache_update_parser.add_argument("name", type=str, help="Binary cache name")
-    cache_update_parser.add_argument("port", type=int, help="Binary cache port")
+    cache_update_parser.add_argument("--name", dest="new_name", help="New binary cache name")
+    cache_update_parser.add_argument("-p", "--port", type=int, help="Binary cache port")
+    cache_update_parser.add_argument(
+        "-a", "--access", choices=CacheAccess.list(), help="Binary cache access"
+    )
     cache_update_parser.add_argument(
         "-r",
         "--retention",
-        help="Number of weeks after which paths will be removed",
-        dest="retention",
+        type=int,
+        help="Number of days after which paths will be removed",
     )
-    cache_update_subparsers = cache_update_parser.add_subparsers(
-        dest="cache_update_storage"
+    cache_update_parser.add_argument(
+        "--strategy",
+        dest="storage_strategy",
+        choices=[strategy.value for strategy in Strategy],
+        help="Storage strategy",
     )
-
-    add_cache_local_storage_parser(cache_update_subparsers)
-    add_cache_s3_storage_parser(cache_update_subparsers)
 
 
 # cache list

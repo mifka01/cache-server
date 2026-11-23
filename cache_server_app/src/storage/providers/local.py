@@ -9,13 +9,19 @@ Date: 5.12.2024
 """
 
 import os
-from typing import Dict
+import shutil
+from typing import Dict, Iterator
 from datetime import datetime, timezone
 
-from cache_server_app.src.storage.base import Storage, StorageConfig
+from cache_server_app.src.storage.base import Readable, Storage, StorageConfig
 from cache_server_app.src.storage.registry import StorageRegistry
 from cache_server_app.src.storage.type import StorageType
-from cache_server_app.src.storage.constants import CONSIDERED_NEW_FILE_AGE, DIR_PERMISSIONS, MAX_STORAGE_USAGE
+from cache_server_app.src.storage.constants import (
+    CONSIDERED_NEW_FILE_AGE,
+    DIR_PERMISSIONS,
+    MAX_STORAGE_USAGE,
+    STREAM_CHUNK_SIZE,
+)
 
 @StorageRegistry.register(StorageType.LOCAL)
 class LocalStorage(Storage):
@@ -80,6 +86,21 @@ class LocalStorage(Storage):
     def rename(self, path: str, new_name: str) -> None:
         os.rename(self._full_path(path), self._full_path(new_name))
 
+    def write_stream(self, path: str, reader: Readable) -> None:
+        with open(self._full_path(path), "wb") as f:
+            shutil.copyfileobj(reader, f, STREAM_CHUNK_SIZE)
+
+    def read_stream(self, path: str) -> Iterator[bytes]:
+        with open(self._full_path(path), "rb") as f:
+            while chunk := f.read(STREAM_CHUNK_SIZE):
+                yield chunk
+
+    def size(self, path: str) -> int:
+        return os.path.getsize(self._full_path(path))
+
+    def exists(self, path: str) -> bool:
+        return os.path.isfile(self._full_path(path))
+
     def list(self) -> list[str]:
         return os.listdir(self.storage_path)
 
@@ -117,5 +138,8 @@ class LocalStorage(Storage):
         return space
 
     def is_full(self) -> bool:
-        normalized_used_space = self.get_used_space() / self.get_available_space() * 0.01
-        return normalized_used_space > MAX_STORAGE_USAGE
+        """Full when the file system holding the storage is almost out of space."""
+        statvfs = os.statvfs(self.storage_path)
+        if statvfs.f_blocks == 0:
+            return False
+        return 1 - statvfs.f_bavail / statvfs.f_blocks > MAX_STORAGE_USAGE

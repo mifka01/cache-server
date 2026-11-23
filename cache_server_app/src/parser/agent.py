@@ -35,7 +35,7 @@ def add_agent_add_parser(
     )
 
     agent_add_parser.add_argument("name", type=str, help="Agent name")
-    agent_add_parser.add_argument("workspace", type=str, help="Workspace name")
+    agent_add_parser.add_argument("workspace_name", metavar="workspace", type=str, help="Workspace name")
 
 
 # agent delete
@@ -55,7 +55,7 @@ def add_agent_list_parser(
         "list", description="List agents", help="List agents"
     )
 
-    agent_list_parser.add_argument("workspace", type=str, help="Workspace name")
+    agent_list_parser.add_argument("workspace_name", metavar="workspace", type=str, help="Workspace name")
 
 # agent info
 def add_agent_info_parser(

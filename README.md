@@ -82,6 +82,7 @@ server:
   server-port: 5001                 # HTTP API port
   deploy-port: 5002                 # Deployment API port
   remote-fallback: false            # Serve paths of other caches found via the DHT
+  remove-unlisted-caches: false     # Delete caches/storages missing from this file
   default-retention: 4              # Default retention period (days)
   default-port: 8080                # Default HTTP port
 ```
@@ -97,6 +98,14 @@ other caches it finds in the DHT. Anyone can write to the DHT, so the server the
 requests URLs chosen by strangers; only enable it on a DHT network you control.
 Remote narinfos are forwarded unchanged, so clients must trust the remote cache's
 own signing key.
+
+Caches and storages that are no longer listed in the config are kept, with their
+store paths, but not started; the server logs a warning for each. Set
+`remove-unlisted-caches: true` to delete them instead (their files stay on disk).
+
+Every 12 hours each cache removes store paths older than its `retention` (days,
+measured from upload) unless a newer path still references them, directly or
+through other paths. A retention of 0 or less keeps paths forever.
 
 
 ### 📦 Cache Instances
@@ -209,15 +218,32 @@ cachix push your-cache-name /nix/store/hash-name
 nix-store -qR $(which your-program) | cachix push your-cache-name
 ```
 
-
 See [Cachix documentation](https://docs.cachix.org/) for more details.
+
+### Command Line
+
+The config file is the main way to set things up, but the CLI works on the same
+database (run it with the same `XDG_CONFIG_HOME` as the server):
+
+```bash
+cache-server cache create NAME --root DIR [--port N] [--access public|private] [--retention DAYS]
+cache-server cache update NAME [--name NEW] [--port N] [--access ...] [--retention DAYS] [--strategy ...]
+cache-server cache info|delete NAME
+cache-server cache list [--private | --public]
+cache-server workspace create|delete|info|list ...
+cache-server agent add|delete|info|list ...
+cache-server store-path list CACHE | info HASH CACHE | delete HASH CACHE
+```
+
+Caches created with the CLI are not in the config file, so the server keeps them
+but does not start them (see `remove-unlisted-caches`).
 
 ## ⚠️ Known Limitations
 
 - **Legacy Components**: Features like workspaces and agents are retained from previous version but remain untested and may not function reliably.
 - **Lack of Automated Testing**: Due to the complexity of the distributed setup, the project currently lacks comprehensive automated tests.
 - **Monitoring**: No unified monitoring or logging system is currently implemented.
-- **Deprecated CLI Tool**: A CLI is no longer maintained, as its functionality has been integrated or made obsolete by configuration-driven design.
+- **CLI and config**: The CLI and the config file both change the same database; the config file wins for everything it lists.
 
 ## 🤝 Contributing
 

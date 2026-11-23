@@ -17,6 +17,8 @@ STORE_NAME_RE = re.compile(r"(?!\.\.?(?:-|$))[0-9A-Za-z+\-._?=]{1,211}")
 FILE_HASH_RE = re.compile(r"[0-9a-f]{64}|[0-9a-df-np-sv-z]{52}")
 # NAR hash as written to narinfo, e.g. "sha256:<base32>".
 NAR_HASH_RE = re.compile(r"[a-z0-9]+:[0-9A-Za-z+/=]{1,128}")
+# S3, whose multipart protocol cachix follows, allows parts 1 to 10000.
+MAX_PART_NUMBER = 10000
 
 
 @dataclass(frozen=True)
@@ -85,3 +87,32 @@ def parse_narinfo_create(data: object) -> NarInfoCreate:
         deriver=deriver,
         references=[_reference(reference) for reference in references],
     )
+
+
+def parse_part_number(value: str | None) -> int:
+    """Validate the `partNumber` of a multipart upload part (1-based, as in S3 and cachix)."""
+    if value is None or not value.isdigit() or not 1 <= int(value) <= MAX_PART_NUMBER:
+        raise ValueError("invalid partNumber")
+    return int(value)
+
+
+def parse_completed_parts(data: object) -> list[tuple[int, str]]:
+    """Validate the `parts` of a completed upload; returns (partNumber, eTag) pairs in part order."""
+    if not isinstance(data, list) or not data:
+        raise ValueError("missing parts")
+
+    parts = []
+    for part in data:
+        if not isinstance(part, dict):
+            raise ValueError("invalid parts")
+        number, tag = part.get("partNumber"), part.get("eTag")
+        if not isinstance(number, int) or isinstance(number, bool) or not 1 <= number <= MAX_PART_NUMBER:
+            raise ValueError("invalid partNumber in parts")
+        if not isinstance(tag, str):
+            raise ValueError("invalid eTag in parts")
+        parts.append((number, tag))
+
+    parts.sort()
+    if len({number for number, _ in parts}) != len(parts):
+        raise ValueError("duplicate partNumber in parts")
+    return parts

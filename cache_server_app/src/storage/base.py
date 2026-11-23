@@ -11,8 +11,14 @@ Date: 5.12.2024
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Literal, Optional, overload
+from typing import Dict, Iterator, List, Literal, Optional, Protocol, overload
 import os
+
+
+class Readable(Protocol):
+    """Binary stream that `read(size)` drains; returns b"" at the end."""
+
+    def read(self, size: int = -1, /) -> bytes: ...
 
 
 @dataclass
@@ -145,6 +151,43 @@ class Storage(ABC):
         Parameters:
             path (str): The path to the file to rename from the root directory.
             new_name (str): The new name of the file.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def write_stream(self, path: str, reader: Readable) -> None:
+        """Write a file from a stream without holding it in memory.
+
+        Parameters:
+            path (str): The path to the file from the root directory.
+            reader (Readable): Stream with the file content, read until it returns b"".
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def read_stream(self, path: str) -> Iterator[bytes]:
+        """Yield the content of a file in chunks.
+
+        Parameters:
+            path (str): The path to the file from the root directory.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def size(self, path: str) -> int:
+        """Get the size of a file in bytes.
+
+        Parameters:
+            path (str): The path to the file from the root directory.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def exists(self, path: str) -> bool:
+        """Check whether a file exists.
+
+        Parameters:
+            path (str): The path to the file from the root directory.
         """
         raise NotImplementedError
 

@@ -12,12 +12,11 @@ Date: 1.5.2024
 import base64
 import json
 import time
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta, timezone
 from cache_server_app.src.cache.constants import ADVERTISING_INTERVAL, GARBAGE_COLLECTION_INTERVAL
 from cache_server_app.src.types import BinaryCacheRow, StorePathRow
 from cache_server_app.src.cache.metrics import CacheMetrics
-from collections import deque
 
 import ed25519
 
@@ -166,20 +165,11 @@ class BinaryCache:
         return [path[1] for path in self.storage.get_store_paths()]
 
     def get_missing_store_hashes(self, hashes: List[str]) -> List[str]:
-        return [
-            store_hash
-            for store_hash in hashes
-            if store_hash not in self.get_store_hashes()
-        ]
+        known = set(self.get_store_hashes())
+        return [store_hash for store_hash in hashes if store_hash not in known]
 
     def get_paths(self) -> List[StorePathRow]:
         return self.storage.get_store_paths()
-
-    def update_workspaces(self, new_name: str) -> None:
-        self.database.update_cache_in_workspaces(self.name, new_name)
-
-    def update_paths(self, new_name: str) -> None:
-        self.database.update_cache_in_paths(self.name, new_name)
 
     def advertise(self) -> None:
         """
@@ -230,67 +220,70 @@ class BinaryCache:
     def garbage_collector(self) -> None:
         while True:
             time.sleep(GARBAGE_COLLECTION_INTERVAL * 3600) # hours to seconds
-            self.collect_garbage()
+            try:
+                self.collect_garbage()
+            except Exception as e:
+                print(f"ERROR: Garbage collection of cache {self.name} failed: {e}")
 
     def collect_garbage(self) -> None:
-        retention = timedelta(days=self.retention)
-        now = datetime.now(timezone.utc)
+        """Remove expired store paths nothing live depends on, then files without a store path.
 
-        healthy_packages: Set[str] = set()
-        expired_rows: List[StorePathRow] = []
+        A store path is live while its NAR is younger than the retention; everything a
+        live path references, directly or transitively, is kept so its closure stays
+        complete. A retention of 0 or less keeps store paths forever.
+        """
+        if self.retention > 0:
+            self._remove_expired_paths(self.storage.get_store_paths())
+        self._remove_orphaned_files(self.storage.get_store_paths())
 
-        for storage in self.storage.storages:
-            for file in storage.list():
-                if file.startswith("key"):
-                    continue
+    def _remove_expired_paths(self, rows: List[StorePathRow]) -> None:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=self.retention)
+        # NAR files are named "{file_hash}.nar.{compression}"
+        nar_files = {
+            storage.id: {name.split(".", 1)[0]: name for name in storage.list() if ".nar." in name}
+            for storage in self.storage.storages
+        }
+        by_name = {f"{row[1]}-{row[2]}": row for row in rows}
 
-                created_at = storage.get_file_creation_time(file)
-                if created_at.tzinfo is None:
-                    created_at = created_at.replace(tzinfo=timezone.utc)  # always use UTC
-
-                file_hash = file.split(".")[0]
-                row = self.database.get_store_path_row([storage.id], file_hash=file_hash)
-
-                if not row:
-                    if storage.is_new_file(file):
-                        continue
-                    print(f"Removing file {file} from storage {storage.name}")
-                    storage.remove(file)
-                    continue
-
-                package_name = f"{row[1]}-{row[2]}"
-                references = row[8].split(" ") if row[8] else []
-
-                if created_at + retention > now:
-                    healthy_packages.add(package_name)
-                    healthy_packages.update(references)
-                else:
-                    expired_rows.append(row)
-
-        queue = deque(expired_rows)
-        visited = set()
-
-        while queue:
-            row = queue.popleft()
-            package_name = f"{row[1]}-{row[2]}"
-            refs = row[8].split(" ") if row[8] else []
-            filename = f"{row[3]}.nar.xz"
-            current_storage = self.storage.get_storage(row[9])
-
-            if not current_storage:
-                continue
-
-            if package_name in healthy_packages:
-                healthy_packages.update(refs)
-                continue
-
-            if package_name in visited:
-                print(f"Removing file {package_name} from storage {current_storage.name}")
-                current_storage.remove(filename)
-                self.database.delete_store_path(row[1], row[9])
+        live: List[str] = []
+        expired = []
+        for row in rows:
+            storage = self.storage.get_storage(row[9])
+            nar_file = nar_files.get(row[9], {}).get(row[3])
+            if storage and nar_file and storage.get_file_creation_time(nar_file) > cutoff:
+                live.append(f"{row[1]}-{row[2]}")
             else:
-                visited.add(package_name)
-                queue.append(row)
+                expired.append((row, storage, nar_file))
+
+        keep = set()
+        while live:
+            name = live.pop()
+            if name in keep:
+                continue
+            keep.add(name)
+            referrer = by_name.get(name)
+            if referrer and referrer[8]:
+                live.extend(referrer[8].split(" "))
+
+        for row, storage, nar_file in expired:
+            if f"{row[1]}-{row[2]}" in keep:
+                continue
+            print(f"Removing expired store path {row[1]}-{row[2]} from cache {self.name}")
+            if storage and nar_file:
+                storage.remove(nar_file)
+            self.database.delete_store_path(row[1], row[9])
+
+    def _remove_orphaned_files(self, rows: List[StorePathRow]) -> None:
+        """Remove files no store path refers to, except keys and recent ones (uploads in progress)."""
+        referenced = {(row[9], row[3]) for row in rows}
+        for storage in self.storage.storages:
+            for name in storage.list():
+                if name.startswith("key.") or (storage.id, name.split(".", 1)[0]) in referenced:
+                    continue
+                if storage.is_new_file(name):
+                    continue
+                print(f"Removing file {name} from storage {storage.name}")
+                storage.remove(name)
 
     def generate_keys(self) -> None:
         sk, pk = ed25519.create_keypair()

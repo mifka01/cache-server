@@ -9,9 +9,10 @@ Date: 30.3.2025
 """
 
 import asyncio
+import signal
 import sys
 import threading
-from typing import Any
+from typing import Callable
 from cache_server_app.src.agent import Agent
 import cache_server_app.src.config.base as config
 from cache_server_app.src.api.server import CacheServerRequestHandler, HTTPCacheServer, WebSocketConnectionHandler
@@ -24,6 +25,8 @@ from cache_server_app.src.workspace import Workspace
 
 class ServerCommands(BaseCommand):
     """Handles all server-related commands."""
+
+    name = "server"
 
     def __init__(self) -> None:
         super().__init__()
@@ -50,6 +53,10 @@ class ServerCommands(BaseCommand):
             right = padding - left
             return "#" * left + f" {title} " + "#" * right
 
+        # SIGTERM (systemctl stop, kill) shuts down like Ctrl+C, so the cache processes are
+        # stopped too; they inherit the handler and exit the same way when terminated.
+        signal.signal(signal.SIGTERM, signal.default_int_handler)
+
         print(header("SERVER"), "\n")
         self.dht.start()
 
@@ -70,28 +77,30 @@ class ServerCommands(BaseCommand):
         )
         print(f"Server started http://{config.server_hostname}:{config.server_port}\n")
 
-        print(header("CACHE"), "\n")
-        self.process_manager.run()
-
-        workspace_commands = WorkspaceCommands()
-        workspaces = Workspace.get_rows()
-        if workspaces:
-            print(header("WORKSPACE"), "\n")
-        for workspace in workspaces:
-            workspace_commands.info(workspace[1])
-
-        agent_commands = AgentCommands()
-        agents = Agent.get_rows()
-        if agents:
-            print(header("AGENT"), "\n")
-        for agent in agents:
-            agent_commands.info(agent[1])
-
-        print("Press Ctrl+C to stop the server\n")
-
         try:
+            print(header("CACHE"), "\n")
+            self.process_manager.run()
+
+            workspace_commands = WorkspaceCommands()
+            workspaces = Workspace.get_rows()
+            if workspaces:
+                print(header("WORKSPACE"), "\n")
+            for workspace in workspaces:
+                workspace_commands.info(workspace[1])
+
+            agent_commands = AgentCommands()
+            agents = Agent.get_rows()
+            if agents:
+                print(header("AGENT"), "\n")
+            for agent in agents:
+                agent_commands.info(agent[1])
+
+            print("Press Ctrl+C to stop the server\n")
             server.serve_forever()
         except KeyboardInterrupt:
+            pass
+        finally:
+            server.server_close()
             self.stop()
 
     def stop(self) -> None:
@@ -124,13 +133,9 @@ class ServerCommands(BaseCommand):
 
         asyncio.run(run_with_cancellation())
 
-    def execute(self, command: str, *args: Any, **kwargs: Any) -> None:
-        """Execute the specified server command."""
-        commands = {
+    def handlers(self) -> dict[str, Callable[..., None]]:
+        return {
             "listen": self.listen,
             "start": self.start,
             "stop": self.stop,
         }
-        if command not in commands:
-            raise ValueError(f"Unknown server command: {command}")
-        commands[command](*args, **kwargs)

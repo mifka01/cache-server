@@ -51,8 +51,9 @@ class ConfigValidator:
         if "standalone" in server and not isinstance(server["standalone"], bool):
             self.errors.append("Server 'standalone' must be a boolean")
 
-        if "remote-fallback" in server and not isinstance(server["remote-fallback"], bool):
-            self.errors.append("Server 'remote-fallback' must be a boolean")
+        for flag in ("remote-fallback", "remove-unlisted-caches"):
+            if flag in server and not isinstance(server[flag], bool):
+                self.errors.append(f"Server '{flag}' must be a boolean")
 
         dht_required_fields = ["dht-bootstrap-host", "dht-bootstrap-port"]
         if not server.get("standalone", False):

@@ -82,19 +82,24 @@ pkgs.testers.runNixOSTest {
     def port_open(port):
         return "timeout 120 sh -c 'until ss -Hltn \"sport = :{}\" | grep -q .; do sleep 1; done'".format(port)
 
-    check("cli cache info", f"{cli} cache info main | grep -qx 'Name: main'")
-    check("cli cache list", f"{cli} cache list | grep -qx main")
-    check("cli workspace list", f"{cli} workspace list | grep -qx main")
-    check("cli store-path info", f"h=$({cli} store-path list main | head -n1) && test -n \"$h\" && {cli} store-path info \"$h\" main | grep -qx \"Store hash: $h\"")
-    check("cli workspace add/delete", f"{cli} workspace add cliws main && {cli} workspace info cliws | grep -qx 'Binary cache: main' && {cli} workspace delete cliws && ! {cli} workspace info cliws")
-    check("cli agent add/list/delete", f"{cli} agent add cliagent main && {cli} agent list main | grep -qx cliagent && {cli} agent delete cliagent && ! {cli} agent list main | grep -qx cliagent")
-    check("cli cache create", f"{cli} cache create clitest --port 7201 --root /var/lib/cache-server/caches --access private --retention 3 && {cli} cache info clitest | grep -qx 'Access: private'")
-    check("cli cache update", f"{cli} cache update clitest --port 7202 --retention 5 && {cli} cache info clitest | grep -qx 'Port: 7202' && {cli} cache info clitest | grep -qx 'Retention: 5'")
+    # `grep -q` would stop reading at the first match and make the CLI fail with
+    # BrokenPipeError under the driver's pipefail; `has` reads the whole output.
+    def has(command, line):
+        return f"{command} | grep -x '{line}' >/dev/null"
+
+    check("cli cache info", has(f"{cli} cache info main", "Name: main"))
+    check("cli cache list", has(f"{cli} cache list", "main"))
+    check("cli workspace list", has(f"{cli} workspace list", "main"))
+    check("cli store-path info", f"h=$({cli} store-path list main | sed -n 1p) && test -n \"$h\" && " + has(f"{cli} store-path info \"$h\" main", "Store hash: $h").replace("'", "\""))
+    check("cli workspace create/delete", f"{cli} workspace create cliws main && " + has(f"{cli} workspace info cliws", "Binary cache: main") + f" && {cli} workspace delete cliws && ! {cli} workspace info cliws")
+    check("cli agent add/list/delete", f"{cli} agent add cliagent main && " + has(f"{cli} agent list main", "cliagent") + f" && {cli} agent delete cliagent && ! " + has(f"{cli} agent list main", "cliagent"))
+    check("cli cache create", f"{cli} cache create clitest --port 7201 --root /var/lib/cache-server/caches --access private --retention 3 && " + has(f"{cli} cache info clitest", "Access: private"))
+    check("cli cache update", f"{cli} cache update clitest --port 7202 --retention 5 && " + has(f"{cli} cache info clitest", "Port: 7202") + " && " + has(f"{cli} cache info clitest", "Retention: 5"))
 
     # KillMode=process: only the server itself gets SIGTERM and must stop its cache processes.
     check("SIGTERM stops cache processes", "systemctl kill --kill-whom=main --signal=SIGTERM cache-server.service && " + port_closed(7001) + " && " + port_closed(7101))
     check("restart after SIGTERM", "systemctl restart cache-server.service && " + port_open(7001))
-    check("cache missing from config is kept", f"{cli} cache info clitest | grep -qx 'Name: clitest' && journalctl -u cache-server.service | grep -q 'clitest'")
+    check("cache missing from config is kept", has(f"{cli} cache info clitest", "Name: clitest") + " && journalctl -u cache-server.service | grep 'WARNING: Binary cache clitest' >/dev/null")
     check("cli cache delete", f"{cli} cache delete clitest && ! {cli} cache info clitest")
 
     assert status == 0, "pytest failed with exit code {}".format(status)

@@ -14,6 +14,7 @@ import urllib.request
 import urllib.error
 import time
 
+from cache_server_app.src.api.constants import HTTP_TIMEOUT
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.cache.constants import LATENCY_WEIGHT, LOAD_SCORE_WEIGHT
 
@@ -29,7 +30,7 @@ class RemoteCacheHelper:
         """Ping the remote cache to check if it's reachable."""
         remote_url = f"{remote_cache_url}/nix-cache-info"
         try:
-            with urllib.request.urlopen(remote_url) as resp:
+            with urllib.request.urlopen(remote_url, timeout=HTTP_TIMEOUT) as resp:
                 if resp.status == 200:
                     return True
                 else:
@@ -91,7 +92,7 @@ class RemoteCacheHelper:
         """
         try:
             remote_url = f"{remote_cache_url}/{store_hash}.narinfo"
-            with urllib.request.urlopen(remote_url) as resp:
+            with urllib.request.urlopen(remote_url, timeout=HTTP_TIMEOUT) as resp:
                 if resp.status != 200:
                     return None, resp.status
 
@@ -115,7 +116,7 @@ class RemoteCacheHelper:
         nar_path = f"nar/{file_hash}.nar.{compression}"
         try:
             remote_url = f"{remote_cache_url}/{nar_path}"
-            with urllib.request.urlopen(remote_url) as resp:
+            with urllib.request.urlopen(remote_url, timeout=HTTP_TIMEOUT) as resp:
                 if resp.status != 200:
                     return None, resp.status
 

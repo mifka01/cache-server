@@ -35,7 +35,7 @@ def add_store_path_list_parser(
     store_path_list_parser = subparsers.add_parser(
         "list", description="List store paths", help="List store paths"
     )
-    store_path_list_parser.add_argument("cache", type=str, help="Binary cache name")
+    store_path_list_parser.add_argument("cache_name", metavar="cache", type=str, help="Binary cache name")
 
 
 # store-path delete
@@ -46,8 +46,8 @@ def add_store_path_delete_parser(
         "delete", description="Delete store path", help="Delete store path"
     )
 
-    store_path_delete_parser.add_argument("hash", type=str, help="Store path hash")
-    store_path_delete_parser.add_argument("cache", type=str, help="Binary cache name")
+    store_path_delete_parser.add_argument("store_hash", metavar="hash", type=str, help="Store path hash")
+    store_path_delete_parser.add_argument("cache_name", metavar="cache", type=str, help="Binary cache name")
 
 
 # store-path info
@@ -60,5 +60,5 @@ def add_store_path_info_parser(
         description="Display info about store path",
     )
 
-    store_path_info_parser.add_argument("hash", help="Store path hash")
-    store_path_info_parser.add_argument("cache", type=str, help="Binary cache name")
+    store_path_info_parser.add_argument("store_hash", metavar="hash", help="Store path hash")
+    store_path_info_parser.add_argument("cache_name", metavar="cache", type=str, help="Binary cache name")

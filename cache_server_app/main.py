@@ -6,6 +6,7 @@ Author: Marek Križan, Radim Mifka
 Date: 1.5.2024
 """
 
+import io
 import sys
 
 from cache_server_app.src.argument_parsing import handle_arguments
@@ -34,6 +35,10 @@ def start_services() -> None:
 
 def main() -> None:
     """Main entry point for the cache-server application."""
+    # Flush every line, so logs reach the journal (a pipe) as they happen.
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(line_buffering=True)
+
     if len(sys.argv) == 1:
         CacheServerDatabase().create_database()
         if load_configuration():

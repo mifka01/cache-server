@@ -61,5 +61,5 @@ class Workspace:
         self.database.delete_workspace(self.name)
 
     def get_agents(self) -> List[AgentRow]:
-        return self.database.get_workspace_agents(self.name)
+        return self.database.get_workspace_agents(self.id)
 

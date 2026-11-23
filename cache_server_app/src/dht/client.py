@@ -14,6 +14,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import cache_server_app.src.config.base as config
+from cache_server_app.src.api.constants import HTTP_TIMEOUT
 from typing import List
 
 class DHTClient:
@@ -48,10 +49,10 @@ class DHTClient:
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"}
         )
         try:
-            with urllib.request.urlopen(req) as response:
+            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as response:
                 if response.status != 200:
                     print(f"ERROR: Failed to put value into DHT. Status code: {response.status}")
-        except urllib.error.URLError as e:
+        except OSError as e:  # URLError, or TimeoutError when the service stops responding
             print(f"ERROR: Error putting value in DHT: {e}")
 
     def get(self, key: str) -> List[str] | None:
@@ -69,13 +70,13 @@ class DHTClient:
             return None
 
         try:
-            with urllib.request.urlopen(f"{self.base_url}/get/{urllib.parse.quote(key)}") as response:
+            with urllib.request.urlopen(f"{self.base_url}/get/{urllib.parse.quote(key)}", timeout=HTTP_TIMEOUT) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode("utf-8"))
                     value: List[str] | None = data.get("value")
                     if value is not None:
                         return value
-        except urllib.error.URLError as e:
+        except OSError as e:  # URLError, or TimeoutError when the service stops responding
             print(f"Error getting value from DHT: {e}")
 
         return None
