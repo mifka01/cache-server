@@ -10,6 +10,8 @@
   cacheAuthToken ? "",
   agentToken ? "",
   activateToken ? "",
+  # Port for the fake DHT peer the security tests serve from the client.
+  fakePeerPort ? 8099,
 }: let
   setupScript = pkgs.writeShellScriptBin "cache-test-client-setup" ''
     set -euo pipefail
@@ -53,7 +55,7 @@ in {
 }: {
   networking.hostName = nodeName;
   networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [ 22 ];
+  networking.firewall.allowedTCPPorts = [ 22 fakePeerPort ];
 
   services.openssh.enable = true;
   services.openssh.settings = {

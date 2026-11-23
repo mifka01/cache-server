@@ -2,15 +2,64 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
 import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
 import pytest
 
+NIX_BASE32_ALPHABET = "0123456789abcdfghijklmnpqrsvwxyz"
+
 
 def _env(name: str, default: str) -> str:
     return os.environ.get(name, default).rstrip("/")
+
+
+def _required_env(name: str) -> str:
+    value = os.environ.get(name, "")
+    if not value:
+        pytest.skip(f"{name} is required")
+    return value.rstrip("/")
+
+
+@pytest.fixture(scope="session")
+def private_cache_name() -> str:
+    return _required_env("QA_PRIVATE_CACHE_NAME")
+
+
+@pytest.fixture(scope="session")
+def private_nix_cache_url() -> str:
+    return _required_env("QA_PRIVATE_NIX_CACHE_URL")
+
+
+@pytest.fixture(scope="session")
+def private_cache_token() -> str:
+    return _required_env("QA_PRIVATE_CACHE_TOKEN")
+
+
+@pytest.fixture(scope="session")
+def cache_id() -> str:
+    return _required_env("QA_CACHE_ID")
+
+
+@pytest.fixture(scope="session")
+def workspace_token() -> str:
+    return _required_env("QA_WORKSPACE_TOKEN")
+
+
+@pytest.fixture(scope="session")
+def server_key() -> str:
+    """Value of `server.key` in the server config; empty when unset."""
+    return os.environ.get("QA_SERVER_KEY", "")
+
+
+@pytest.fixture(scope="session")
+def random_nix_hash() -> Callable[[int], str]:
+    def _hash(length: int = 32) -> str:
+        return "".join(secrets.choice(NIX_BASE32_ALPHABET) for _ in range(length))
+
+    return _hash
 
 
 @pytest.fixture(scope="session")
@@ -205,3 +254,42 @@ def request_json(http_request: Callable[..., tuple[int, str]]) -> Callable[..., 
         return status, json.loads(body)
 
     return _request_json
+
+
+@pytest.fixture(scope="session")
+def create_upload(
+    request_json: Callable[..., tuple[int, Any]],
+    api_base_url: str,
+    cache_name: str,
+    cache_auth_token: str,
+) -> Callable[[], str]:
+    """Start a multipart NAR upload on the public cache and return its narId."""
+
+    def _create() -> str:
+        status, payload = request_json(
+            url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar?compression=xz",
+            method="POST",
+            headers=[f"Authorization: Bearer {cache_auth_token}"],
+            data="{}",
+        )
+        assert status == 200
+        assert isinstance(payload, dict)
+        return str(payload["narId"])
+
+    return _create
+
+
+@pytest.fixture(scope="session")
+def dht_values(
+    request_json: Callable[..., tuple[int, Any]],
+    api_base_url: str,
+) -> Callable[[str], list[str]]:
+    """Values the server's DHT node returns for a key (empty when none)."""
+
+    def _get(key: str) -> list[str]:
+        status, payload = request_json(f"{api_base_url}/api/v1/dht/get/{key}")
+        assert status == 200
+        assert isinstance(payload, dict)
+        return list(payload.get("value") or [])
+
+    return _get

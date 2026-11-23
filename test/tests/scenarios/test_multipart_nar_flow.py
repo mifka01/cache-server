@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import uuid
 from typing import Any, Callable
 
 import pytest
@@ -59,6 +58,7 @@ def test_multipart_nar_complete_creates_retrievable_narinfo(
     cache_name: str,
     nix_cache_url: str,
     cache_auth_token: str,
+    random_nix_hash: Callable[[int], str],
 ) -> None:
     del require_api_endpoint, require_cache_token
 
@@ -79,17 +79,17 @@ def test_multipart_nar_complete_creates_retrievable_narinfo(
     )
     assert put_status == 201
 
-    store_hash = f"qa{uuid.uuid4().hex[:10]}"
-    file_hash = f"qa{uuid.uuid4().hex[:10]}"
+    store_hash = random_nix_hash(32)
+    file_hash = random_nix_hash(52)
     complete_body = {
         "narInfoCreate": {
             "cStoreHash": store_hash,
             "cStoreSuffix": "qa-multipart",
             "cFileHash": file_hash,
             "cFileSize": 17,
-            "cNarHash": "sha256:qa",
+            "cNarHash": f"sha256:{random_nix_hash(52)}",
             "cNarSize": 17,
-            "cDeriver": "unknown",
+            "cDeriver": "unknown-deriver",
             "cReferences": [],
         }
     }

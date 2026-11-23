@@ -10,6 +10,11 @@
   cacheName ? "main",
   cachePort ? 7001,
   cacheAccess ? "public",
+  privateCacheName ? "private",
+  privateCachePort ? cachePort + 100,
+  # Deliberately named like the public cache: tokens of different entities must never coincide.
+  workspaceName ? cacheName,
+  # Legacy setting the server ignores; the tests prove tokens can't be forged from it.
   key ? "test-key",
   retention ? 7,
 }: {
@@ -18,7 +23,7 @@
 }: {
   networking.hostName = nodeName;
   networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [ 22 80 serverPort deployPort cachePort dhtPort bootstrapDhtPort ];
+  networking.firewall.allowedTCPPorts = [ 22 80 serverPort deployPort cachePort privateCachePort dhtPort bootstrapDhtPort ];
   networking.firewall.allowedUDPPorts = [ dhtPort bootstrapDhtPort ];
 
   services.openssh.enable = true;
@@ -79,7 +84,20 @@
               type: "local"
               root: "/var/lib/cache-server/caches"
 
-      workspaces: []
+        - name: "${privateCacheName}"
+          port: ${toString privateCachePort}
+          access: "private"
+          retention: ${toString retention}
+          storage-strategy: "in-order"
+          storages:
+            - name: "local"
+              type: "local"
+              root: "/var/lib/cache-server/caches"
+
+      workspaces:
+        - name: "${workspaceName}"
+          cache: "${cacheName}"
+
       agents: []
       EOF
     '';

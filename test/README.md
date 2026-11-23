@@ -57,6 +57,10 @@ At ready state, `lab` prints all valid attach targets for the current topology.
   - stable external API contract checks
 - `test/tests/scenarios/`
   - end-to-end workflows (example: cachix push)
+- `test/tests/security/`
+  - authentication, authorization and input-validation checks; need the
+    `QA_PRIVATE_*`, `QA_CACHE_ID` and `QA_WORKSPACE_TOKEN` values that the VM
+    test exports (they skip without them)
 - `test/tests/nonfunctional/`
   - reserved for perf/load/resilience tests
 - `test/tests/conftest.py`
