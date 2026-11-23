@@ -57,7 +57,7 @@ class ConfigValidator:
                 self.errors.append(f"Server is missing required fields for DHT: {', '.join(dht_required_fields)}")
                 return
 
-        strings = ["database", "hostname", "key"]
+        strings = ["database", "hostname"]
         ports = ["server-port", "deploy-port"]
 
 

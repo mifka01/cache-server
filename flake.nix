@@ -38,7 +38,6 @@
           opendht = pkgs.callPackage ./opendht.nix { inherit python; };
           pythonEnv = python.withPackages (ps: with ps; [
             opendht
-            pyjwt
             websockets
             ed25519
             boto3

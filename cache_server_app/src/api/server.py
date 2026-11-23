@@ -23,9 +23,12 @@ from websockets.server import WebSocketServerProtocol
 from typing import Any, Tuple
 
 from cache_server_app.src.agent import Agent
+from cache_server_app.src.api.validation import parse_narinfo_create
+from cache_server_app.src.auth import bearer_token, tokens_match
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.store_path import StorePath
 from cache_server_app.src.dht.node import DHT
+from cache_server_app.src.workspace import Workspace
 import cache_server_app.src.config.base as config
 
 
@@ -44,6 +47,27 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.server: HTTPCacheServer # type: ignore
+
+    def _send_status(self, status: int) -> None:
+        self.send_response(status)
+        self.end_headers()
+
+    def _request_token(self) -> str | None:
+        return bearer_token(self.headers.get("Authorization"))
+
+    def _authorized_for_cache(self, cache: BinaryCache) -> bool:
+        return tokens_match(self._request_token(), cache.token)
+
+    def _authorized_for_any_cache(self) -> bool:
+        token = self._request_token()
+        return any(tokens_match(token, row[3]) for row in BinaryCache.get_rows())
+
+    def _authorized_workspace(self) -> Workspace | None:
+        token = self._request_token()
+        for row in Workspace.get_rows():
+            if tokens_match(token, row[2]):
+                return Workspace.get(id=row[0])
+        return None
 
     def do_GET(self) -> None:
         # /api/v1/dht/get/{key}
@@ -69,10 +93,9 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
 
-            if cache.is_private():
-                if self.headers["Authorization"].split()[1] != cache.token:
-                    self.send_response(401)
-                    self.end_headers()
+            if cache.is_private() and not self._authorized_for_cache(cache):
+                self._send_status(401)
+                return
 
             # /api/v1/cache/{name}
             if m := re.match(r"^/api/v1/cache/([a-z0-9]*)(\?)?$", self.path):
@@ -88,8 +111,16 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
             r"^/api/v1/deploy/deployment/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})(\?)?",
             self.path,
         ):
+            if self._authorized_workspace() is None:
+                self._send_status(401)
+                return
+
             deploy_id = m.group(1)
-            deploy_status = self.server.websocket_handler.deployments[deploy_id]
+            deploy_status = self.server.websocket_handler.deployments.get(deploy_id)
+            if deploy_status is None:
+                self._send_status(404)
+                return
+
             response = json.dumps(
                 {
                     "closureSize": 0,
@@ -118,22 +149,28 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         # /api/v1/dht/put
         if self.path == "/api/v1/dht/put":
+            if not self._authorized_for_any_cache():
+                self._send_status(401)
+                return
+
             content_length = int(self.headers["Content-Length"])
-            body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            try:
+                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            except ValueError:
+                self._send_status(400)
+                return
 
             # to make sure that dht put is non-blocking
             def done(ok: bool, _: Any) -> None:
                 pass
-                # if not ok:
-                #     print("ERROR: DHT put failed")
 
-            if "key" in body and "value" in body:
-                self.server.dht.put(body["key"], body["value"], done, permanent=body["permanent"])
-                self.send_response(200)
-                self.end_headers()
-            else:
-                self.send_response(500)
-                self.end_headers()
+            if not isinstance(body, dict) or "key" not in body or "value" not in body:
+                self._send_status(400)
+                return
+
+            permanent = bool(body.get("permanent", False))
+            self.server.dht.put(str(body["key"]), str(body["value"]), done, permanent=permanent)
+            self._send_status(200)
             return
 
         elif m := re.match(r"^/api/v1/cache/([a-z0-9]*)", self.path):
@@ -145,9 +182,8 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return
 
-            if self.headers["Authorization"].split()[1] != cache.token:
-                self.send_response(401)
-                self.end_headers()
+            if not self._authorized_for_cache(cache):
+                self._send_status(401)
                 return
 
             # /api/v1/cache/{name}/narinfo
@@ -181,8 +217,6 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 filename = f"{id}.nar.{m.group(1)}"
                 cache.storage.new_file(filename)
 
-                self.server.dht.put(filename, cache.id)
-
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(response)))
@@ -195,8 +229,13 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
                 self.path,
             ):
                 content_length = int(self.headers["Content-Length"])
-                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
-                narinfo_create = body["narInfoCreate"]
+                try:
+                    body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                    narinfo_create = parse_narinfo_create(body.get("narInfoCreate") if isinstance(body, dict) else None)
+                except ValueError as e:
+                    print(f"ERROR: Rejected narinfo for upload {m.group(1)}: {e}")
+                    self._send_status(400)
+                    return
 
                 name = m.group(1)
                 finding = cache.storage.find(name)
@@ -209,23 +248,23 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
 
                 StorePath(
                     id=str(uuid.uuid4()),
-                    store_hash=narinfo_create["cStoreHash"],
-                    store_suffix=narinfo_create["cStoreSuffix"],
-                    file_hash=narinfo_create["cFileHash"],
-                    file_size=narinfo_create["cFileSize"],
-                    nar_hash=narinfo_create["cNarHash"],
-                    nar_size=narinfo_create["cNarSize"],
-                    deriver=narinfo_create["cDeriver"],
-                    references=narinfo_create["cReferences"],
+                    store_hash=narinfo_create.store_hash,
+                    store_suffix=narinfo_create.store_suffix,
+                    file_hash=narinfo_create.file_hash,
+                    file_size=narinfo_create.file_size,
+                    nar_hash=narinfo_create.nar_hash,
+                    nar_size=narinfo_create.nar_size,
+                    deriver=narinfo_create.deriver,
+                    references=narinfo_create.references,
                     storage=storage
                 ).save()
 
                 new_filename = "{}.nar{}".format(
-                    narinfo_create["cFileHash"], os.path.splitext(filename)[1]
+                    narinfo_create.file_hash, os.path.splitext(filename)[1]
                 )
 
                 if cache.is_public():
-                    self.server.dht.put(narinfo_create["cStoreHash"], cache.id)
+                    self.server.dht.put(narinfo_create.store_hash, cache.id)
 
                 storage.rename(filename, new_filename)
 
@@ -278,22 +317,28 @@ class CacheServerRequestHandler(BaseHTTPRequestHandler):
 
         # /api/v2/deploy/activate
         elif m := re.match(r"^/api/v2/deploy/activate(\?)?", self.path):
+            workspace = self._authorized_workspace()
+            if workspace is None:
+                self._send_status(401)
+                return
+
             content_length = int(self.headers["Content-Length"])
             body = json.loads(self.rfile.read(content_length).decode("utf-8"))
-            agents = {}
+            requested: dict[str, str] = body["agents"]
 
-            for agent, path in body["agents"].items():
-                if not Agent.get(name=agent):
-                    self.send_response(400)
-                    self.end_headers()
+            for agent_name in requested:
+                agent = Agent.get(name=agent_name)
+                if not agent or agent.workspace.id != workspace.id:
+                    self._send_status(400)
                     return
 
+            agents = {}
+            for agent_name, path in requested.items():
                 deploy_id = str(uuid.uuid4())
-                agent_item = {"id": deploy_id, "url": ""}
-                agents[f"{agent}"] = agent_item
+                agents[agent_name] = {"id": deploy_id, "url": ""}
                 asyncio.run(
                     self.server.websocket_handler.start_deployment(
-                        agent, path, deploy_id
+                        agent_name, path, deploy_id
                     )
                 )
 

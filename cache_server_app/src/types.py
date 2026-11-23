@@ -18,6 +18,4 @@ StorePathRow: TypeAlias = tuple[str, str, str, str, int, str, int, str, str, str
 WorkspaceRow: TypeAlias = tuple[str, str, str, str]  # id, name, token, cache_id
 AgentRow: TypeAlias = tuple[str, str, str, str]  # id, name, token, workspace_id
 
-NarInfoDict: TypeAlias = dict[str, str | List[str]]  # Dictionary containing NAR info
-
 StrategyStateDict: TypeAlias = dict[str, str | int | List[str] | List[int]]

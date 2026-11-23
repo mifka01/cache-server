@@ -12,9 +12,7 @@ import sys
 import uuid
 from typing import Any, Callable
 
-import jwt
-
-import cache_server_app.src.config.base as config
+from cache_server_app.src.auth import generate_token
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.workspace import Workspace
@@ -34,9 +32,8 @@ class WorkspaceCommands(BaseCommand):
             print(f"ERROR: Binary cache {cache_name} does not exist.")
             sys.exit(1)
 
-        encoded_jwt = jwt.encode({"name": name}, config.key, algorithm="HS256")
         workspace_id = str(uuid.uuid1())
-        Workspace(workspace_id, name, encoded_jwt, cache).save()
+        Workspace(workspace_id, name, generate_token(), cache).save()
 
     def delete(self, name: str) -> None:
         """Delete a workspace."""

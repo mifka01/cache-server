@@ -9,12 +9,12 @@ Author: Marek Križan, Radim Mifka
 Date: 17.4.2025
 """
 
-import base64
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Tuple, Any
 import time
 
+from cache_server_app.src.auth import basic_auth_password, tokens_match
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.cache.remote import RemoteCacheHelper
 from cache_server_app.src.store_path import StorePath
@@ -34,19 +34,20 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
     """
     Class to handle binary cache HTTP requests.
     """
+    def _authorized(self) -> bool:
+        """Public caches are readable by anyone; private ones need the cache token as Basic auth password."""
+        if not self.server.cache.is_private():
+            return True
+        password = basic_auth_password(self.headers.get("Authorization"))
+        return tokens_match(password, self.server.cache.token)
+
     def do_GET(self) -> None:
         start_time = time.time()
 
-        if self.server.cache.is_private():
-            if (
-                base64.b64decode(self.headers["Authorization"].split()[1]).decode(
-                    "utf-8"
-                )[1:]
-                != self.server.cache.token
-            ):
-                self.send_response(401)
-                self.end_headers()
-                return
+        if not self._authorized():
+            self.send_response(401)
+            self.end_headers()
+            return
 
         # /nix-cache-info
         if m := re.match(r"^/nix-cache-info$", self.path):
@@ -81,11 +82,10 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
                 self.server.cache.metrics.record_request(True, response_time)
                 return
 
+            # served as signed by the cache that owns it
             path = StorePath.find(m.group(1))
             if path:
                 response = path.get_narinfo().encode()
-                narinfo_dict = self.server.cache.sign(response)
-                response = self.server.remote.narinfo_dict_to_bytes(narinfo_dict)
                 self.send_response(200)
                 self.send_header("Content-Type", "text/x-nix-narinfo")
                 self.send_header("Content-Length", str(len(response)))
@@ -106,7 +106,8 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
                 self.server.cache.metrics.record_request(False, response_time)
                 return
 
-            response, status = self.server.remote.fetch_and_process_remote_narinfo(
+            # forwarded unmodified: a DHT peer is untrusted, clients verify its own signature
+            response, status = self.server.remote.fetch_remote_narinfo(
                 store_hash,
                 remote_cache_url
             )
@@ -231,9 +232,6 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
 
             body = self.rfile.read(content_length)
 
-
-            self.server.cache.dht.put(filename, self.server.cache.id)
-
             storage.save(filename, body)
 
             self.send_response(201)
@@ -250,18 +248,12 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         start_time = time.time()
 
-        if self.server.cache.is_private():
-            if (
-                base64.b64decode(self.headers["Authorization"].split()[1]).decode(
-                    "utf-8"
-                )[1:]
-                != self.server.cache.token
-            ):
-                self.send_response(401)
-                self.end_headers()
-                response_time = time.time() - start_time
-                self.server.cache.metrics.record_request(True, response_time)
-                return
+        if not self._authorized():
+            self.send_response(401)
+            self.end_headers()
+            response_time = time.time() - start_time
+            self.server.cache.metrics.record_request(False, response_time)
+            return
 
         # /{storeHash}.narinfo
         if m := re.match(r"^\/([a-z0-9]+)\.narinfo", self.path):

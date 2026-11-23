@@ -47,19 +47,24 @@ class LocalStorage(Storage):
     def get_type(self) -> str:
         return StorageType.LOCAL
 
+    def _full_path(self, path: str) -> str:
+        """Resolve a storage-relative path, refusing anything outside the storage directory."""
+        root = os.path.realpath(self.storage_path)
+        full_path = os.path.realpath(os.path.join(root, path))
+        if os.path.dirname(full_path) != root:
+            raise ValueError(f"Path {path!r} is outside of storage {self.name}")
+        return full_path
+
     def new_file(self, path: str, data: bytes = b"") -> None:
-        path = os.path.join(self.storage_path, path)
-        with open(path, "wb") as f:
+        with open(self._full_path(path), "wb") as f:
             f.write(data)
 
     def save(self, path: str, data: bytes) -> None:
-        path = os.path.join(self.storage_path, path)
-        with open(path, "wb") as f:
+        with open(self._full_path(path), "wb") as f:
             f.write(data)
 
     def remove(self, path: str) -> None:
-        path = os.path.join(self.storage_path, path)
-        os.remove(path)
+        os.remove(self._full_path(path))
 
     def clear(self) -> None:
         for dirpath, _, filenames in os.walk(self.storage_path):
@@ -69,22 +74,17 @@ class LocalStorage(Storage):
                 # os.remove(filepath)
 
     def read(self, path: str, binary: bool = False) -> str | bytes:
-        path = os.path.join(self.storage_path, path)
-        with open(path, "rb" if binary else "r") as f:
+        with open(self._full_path(path), "rb" if binary else "r") as f:
             return f.read()
 
     def rename(self, path: str, new_name: str) -> None:
-        path = os.path.join(self.storage_path, path)
-        new_path = os.path.join(self.storage_path, new_name)
-
-        os.rename(path, new_path)
+        os.rename(self._full_path(path), self._full_path(new_name))
 
     def list(self) -> list[str]:
         return os.listdir(self.storage_path)
 
     def get_file_creation_time(self, path: str) -> datetime:
-        path = os.path.join(self.storage_path, path)
-        file_mod_time = os.path.getmtime(path)
+        file_mod_time = os.path.getmtime(self._full_path(path))
         return datetime.fromtimestamp(file_mod_time, tz=timezone.utc)
 
     def is_new_file(self, path: str) -> bool:

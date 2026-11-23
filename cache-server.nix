@@ -23,7 +23,6 @@ pythonPackages.buildPythonApplication rec {
   ];
 
   propagatedBuildInputs = with pythonPackages; [
-    pyjwt
     websockets
     ed25519
     boto3

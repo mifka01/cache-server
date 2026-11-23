@@ -16,10 +16,10 @@ import signal
 import threading
 
 from cache_server_app.src.storage.strategies import Strategy
-import jwt
 
 import cache_server_app.src.config.base as config
 from cache_server_app.src.api.cache import BinaryCacheRequestHandler, HTTPBinaryCache
+from cache_server_app.src.auth import generate_token
 from cache_server_app.src.cache.base import BinaryCache, CacheAccess
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.storage.factory import StorageFactory
@@ -48,7 +48,7 @@ class CacheCommands(BaseCommand):
 
         cache_url = f"http://{name}.{config.server_hostname}"
         cache_id = str(uuid.uuid1())
-        cache_token = jwt.encode({"name": name}, config.key, algorithm="HS256")
+        cache_token = generate_token()
 
         storage_instances = []
         state: dict[str, List[str]] = {}
@@ -177,9 +177,7 @@ class CacheCommands(BaseCommand):
                 cache.update_paths(new_name)
                 cache.name = new_name
                 cache.url = f"http://{new_name}.{config.server_hostname}"
-                cache.token = jwt.encode(
-                    {"name": new_name}, config.key, algorithm="HS256"
-                )
+                cache.token = generate_token()
             else:
                 print(
                     f"ERROR: Binary cache {new_name} already exists. Name won't be changed."

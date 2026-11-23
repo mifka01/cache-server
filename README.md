@@ -81,10 +81,15 @@ server:
   dht-bootstrap-port: 4223          # Bootstrap node port
   server-port: 5001                 # HTTP API port
   deploy-port: 5002                 # Deployment API port
-  key: "your-secret-key-here"       # Authentication key
   default-retention: 4              # Default retention period (days)
   default-port: 8080                # Default HTTP port
 ```
+
+Caches, workspaces and agents each get their own random access token when they
+are created; the server prints them at startup (also `cache-server cache info <name>`).
+Tokens of older versions, which were derived from the removed `key` setting, are
+replaced automatically on the next start, so clients must be given the new ones.
+A leftover `key` entry in the config is ignored.
 
 
 ### 📦 Cache Instances

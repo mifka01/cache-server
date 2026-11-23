@@ -9,7 +9,6 @@ let
 
   pythonEnv = python.withPackages (ps: with ps; [
     opendht
-    pyjwt
     websockets
     ed25519
     boto3

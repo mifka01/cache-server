@@ -15,7 +15,7 @@ import time
 from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta, timezone
 from cache_server_app.src.cache.constants import ADVERTISING_INTERVAL, GARBAGE_COLLECTION_INTERVAL
-from cache_server_app.src.types import BinaryCacheRow, NarInfoDict, StorePathRow
+from cache_server_app.src.types import BinaryCacheRow, StorePathRow
 from cache_server_app.src.cache.metrics import CacheMetrics
 from collections import deque
 
@@ -64,7 +64,7 @@ class BinaryCache:
         self.port = port
         self.retention = retention
         self.storage = storage
-        self.dht = DHTClient.get_instance()
+        self.dht = DHTClient(token)
         self.metrics = CacheMetrics(self.id)
 
     @staticmethod
@@ -183,13 +183,16 @@ class BinaryCache:
 
     def advertise(self) -> None:
         """
-        Advertise the cache to the DHT.
+        Advertise the cache to the DHT. DHT values are public, so private caches
+        are never advertised and credentials are never part of the payload.
         """
+        if self.is_private():
+            return
+
         payload = {
             "id": self.id,
             "name": self.name,
             "url": self.url,
-            "token": self.token,
             "access": str(self.access),
             "port": self.port,
             "metrics": self.metrics.to_dict(),
@@ -288,85 +291,6 @@ class BinaryCache:
             else:
                 visited.add(package_name)
                 queue.append(row)
-
-    def fingerprint(self, references: List[str], store_path: str, nar_hash: str, nar_size: str) -> bytes:
-
-        refs = ",".join(["/nix/store/" + ref for ref in references])
-
-        output = f"1;{store_path};{nar_hash};{nar_size};{refs}".encode(
-            "utf-8"
-        )
-        return output
-
-    def _parse_narinfo_text(self, narinfo_str: str) -> Optional[NarInfoDict]:
-        """Parse narinfo text into a dictionary of key-value pairs.
-
-        Args:
-            narinfo_str: Raw narinfo string content
-
-        Returns:
-            Dictionary of narinfo fields or None if required fields are missing
-        """
-        result: NarInfoDict = {}
-
-        for line in narinfo_str.strip().splitlines():
-            if not line or line.startswith("Sig:"):
-                continue
-
-            if line.startswith("References:"):
-                refs = line.split(": ", 1)[1]
-                result["References"] = refs.split(" ") if refs and refs != " " else []
-                continue
-
-            try:
-                key, val = line.split(": ", 1)
-                result[key] = val
-            except ValueError:
-                continue
-
-        if all(result[key] or result["References"] == [] for key in result):
-            return result
-
-        return None
-
-
-    def sign(self, narinfo: bytes) -> NarInfoDict:
-        """Sign narinfo content and return the complete signed narinfo.
-
-        Args:
-            narinfo: Raw narinfo content in bytes
-
-        Returns:
-            Complete signed narinfo text
-        """
-
-        content = self.storage.read("key.priv", binary=True).split(b":")
-        prefix = content[0]
-
-
-        narinfo_dict = self._parse_narinfo_text(narinfo.decode())
-        if not narinfo_dict:
-            raise ValueError("Invalid narinfo content")
-
-        references: List[str] = narinfo_dict.get("References") # type: ignore
-        store_path: str = narinfo_dict.get("StorePath") # type: ignore
-        nar_hash: str = narinfo_dict.get("NarHash") # type: ignore
-        nar_size: str = narinfo_dict.get("NarSize") # type: ignore
-
-
-        fingerprint = self.fingerprint(
-            references,
-            store_path,
-            nar_hash,
-            nar_size,
-        )
-
-        sk = ed25519.SigningKey(base64.b64decode(content[1]))
-        sig = prefix + b":" + base64.b64encode(sk.sign(fingerprint))
-        narinfo_dict["Sig"] = sig.decode("utf-8")
-
-        return narinfo_dict
-
 
     def generate_keys(self) -> None:
         sk, pk = ed25519.create_keypair()

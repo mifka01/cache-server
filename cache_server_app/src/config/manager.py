@@ -16,6 +16,7 @@ import os
 import cache_server_app.src.config.base as config
 from cache_server_app.src.commands.registry import CommandRegistry
 from cache_server_app.src.storage.registry import StorageRegistry
+from cache_server_app.src.auth import generate_token, is_legacy_token
 from cache_server_app.src.cache.base import BinaryCache, CacheAccess
 from cache_server_app.src.config.validator import ConfigValidator
 from cache_server_app.src.storage.strategies import Strategy
@@ -69,6 +70,7 @@ class ConfigManager:
             self._handle_workspaces()
             self._handle_agents()
             self._remove_orphaned_resources()
+            self._rotate_legacy_tokens()
 
             return True, []
         except Exception as e:
@@ -190,6 +192,29 @@ class ConfigManager:
                 agent_instance = Agent.get(name=name)
                 if agent_instance:
                     agent_instance.delete()
+
+    def _rotate_legacy_tokens(self) -> None:
+        """Replace tokens of older versions, which anyone knowing the entity name and server key could compute."""
+        for cache_row in BinaryCache.get_rows():
+            cache = BinaryCache.get(id=cache_row[0])
+            if cache and is_legacy_token(cache.token):
+                cache.token = generate_token()
+                cache.update()
+                print(f"Rotated legacy token of binary cache {cache.name}.")
+
+        for workspace_row in Workspace.get_rows():
+            workspace = Workspace.get(id=workspace_row[0])
+            if workspace and is_legacy_token(workspace.token):
+                workspace.token = generate_token()
+                workspace.update()
+                print(f"Rotated legacy token of workspace {workspace.name}.")
+
+        for agent_row in Agent.get_rows():
+            agent = Agent.get(id=agent_row[0])
+            if agent and is_legacy_token(agent.token):
+                agent.token = generate_token()
+                agent.update()
+                print(f"Rotated legacy token of agent {agent.name}.")
 
     def _get_cache_state(self, name: str, cache_config: Dict) -> ResourceState:
         """Get the current state of a cache."""

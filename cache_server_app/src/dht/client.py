@@ -19,17 +19,13 @@ from typing import List
 class DHTClient:
     """
     Client class to connect to the central DHT service.
+
+    Writes are authenticated with the token of the cache the client acts for.
     """
-    _instance = None
 
-    @classmethod
-    def get_instance(cls) -> "DHTClient":
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-
-    def __init__(self) -> None:
+    def __init__(self, token: str) -> None:
         self.base_url = f"http://{config.server_hostname}:{config.server_port}/api/v1/dht"
+        self.token = token
 
     def put(self, key: str, value: str, permanent: bool = False) -> None:
         """
@@ -49,7 +45,7 @@ class DHTClient:
         req = urllib.request.Request(
             f"{self.base_url}/put",
             data=data,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.token}"}
         )
         try:
             with urllib.request.urlopen(req) as response:

@@ -12,10 +12,8 @@ import sys
 import uuid
 from typing import Any, Callable
 
-import jwt
-
-import cache_server_app.src.config.base as config
 from cache_server_app.src.agent import Agent
+from cache_server_app.src.auth import generate_token
 from cache_server_app.src.commands.base import BaseCommand
 from cache_server_app.src.workspace import Workspace
 
@@ -35,8 +33,7 @@ class AgentCommands(BaseCommand):
             sys.exit(1)
 
         agent_id = str(uuid.uuid1())
-        encoded_jwt = jwt.encode({"name": name}, config.key, algorithm="HS256")
-        Agent(agent_id, name, encoded_jwt, workspace).save()
+        Agent(agent_id, name, generate_token(), workspace).save()
 
     def remove(self, name: str) -> None:
         """Remove an agent."""

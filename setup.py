@@ -16,7 +16,7 @@ setup(
         "cache_server_app/src/storage",
         "cache_server_app/src/storage/providers",
     ],
-    install_requires=["websockets", "pyjwt", "ed25519", 'boto3', 'pyyaml'],
+    install_requires=["websockets", "ed25519", 'boto3', 'pyyaml'],
     entry_points={
         "console_scripts": ["cache-server = cache_server_app.main:main"],
     },

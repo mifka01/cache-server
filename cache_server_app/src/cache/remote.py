@@ -83,39 +83,25 @@ class RemoteCacheHelper:
 
         return best_remote_cache.get("url") if best_remote_cache else None
 
-    def narinfo_dict_to_bytes(self, narinfo_dict: dict) -> bytes:
-        """Convert narinfo dictionary to bytes."""
-        ordered_keys = [
-            "StorePath", "URL", "Compression", "FileHash", "FileSize",
-            "NarHash", "NarSize", "Deriver", "System", "References", "Sig"
-        ]
+    def fetch_remote_narinfo(self, store_hash: str, remote_cache_url: str) -> tuple[bytes | None, int]:
+        """Fetch narinfo from a remote cache and remember where its NAR lives.
 
-        response = ""
-        for key in ordered_keys:
-            value = narinfo_dict.get(key, "")
-            if key == "References":
-                value = " ".join(value) if value else " "
-            response += f"{key}: {value}\n"
-
-        return response.encode()
-
-    def fetch_and_process_remote_narinfo(self, store_hash: str, remote_cache_url: str) -> tuple[bytes | None, int]:
-        """Fetch narinfo from remote cache and process it."""
+        The narinfo is returned unmodified: the remote cache is an untrusted DHT peer,
+        so clients must verify its own signature instead of getting this cache's one.
+        """
         try:
             remote_url = f"{remote_cache_url}/{store_hash}.narinfo"
             with urllib.request.urlopen(remote_url) as resp:
                 if resp.status != 200:
                     return None, resp.status
 
-                narinfo_data = resp.read()
-                narinfo_dict = self.cache.sign(narinfo_data)
+                narinfo_data: bytes = resp.read()
 
-                file_url: str = narinfo_dict.get("URL") # type: ignore
-                if file_url:
-                    self.cached_paths[file_url] = remote_cache_url
+                for line in narinfo_data.decode("utf-8").splitlines():
+                    if line.startswith("URL: "):
+                        self.cached_paths[line[len("URL: "):].strip()] = remote_cache_url
 
-                narinfo_bytes = self.narinfo_dict_to_bytes(narinfo_dict)
-                return narinfo_bytes, 200
+                return narinfo_data, 200
 
         except urllib.error.HTTPError as e:
             print(f"ERROR: Failed to fetch remote narinfo: {e}")
