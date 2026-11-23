@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Tuple, Any
 import time
 
+import cache_server_app.src.config.base as config
 from cache_server_app.src.auth import basic_auth_password, tokens_match
 from cache_server_app.src.cache.base import BinaryCache
 from cache_server_app.src.cache.remote import RemoteCacheHelper
@@ -96,6 +97,12 @@ class BinaryCacheRequestHandler(BaseHTTPRequestHandler):
                 self.server.cache.metrics.record_request(False, response_time)
                 return
 
+            if not config.remote_fallback:
+                self.send_response(404)
+                self.end_headers()
+                response_time = time.time() - start_time
+                self.server.cache.metrics.record_request(False, response_time)
+                return
 
             remote_cache_url = self.server.remote.get_remote_cache_url(store_hash)
             if not remote_cache_url or remote_cache_url == self.server.cache.url:

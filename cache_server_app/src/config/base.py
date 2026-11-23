@@ -43,6 +43,9 @@ try:
     dht_bootstrap_port = int(server_config.get("dht-bootstrap-port", 4223))
     server_port = int(server_config.get("server-port", 5000))
     deploy_port = int(server_config.get("deploy-port", 5001))
+    # Serve narinfos/NARs of other caches found through the DHT. Off by default: DHT
+    # entries are written by anyone, so this makes the server fetch attacker-chosen URLs.
+    remote_fallback = server_config.get("remote-fallback", False)
 
     default_retention = int(server_config.get("default-retention", 4))
     default_port = int(server_config.get("default-port", 8080))

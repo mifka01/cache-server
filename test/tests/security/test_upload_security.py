@@ -24,10 +24,13 @@ def _narinfo_create(store_hash: str, file_hash: str, **overrides: Any) -> dict[s
 INVALID_FIELDS = {
     "file-hash-traversal": {"cFileHash": "../../../../../../tmp/qa-escape"},
     "file-hash-absolute": {"cFileHash": "/tmp/qa-escape"},
+    "file-hash-not-a-hash": {"cFileHash": "key"},
     "store-hash-traversal": {"cStoreHash": "../qa-escape"},
     "store-hash-newline": {"cStoreHash": "qa\nURL: nar/evil.nar.xz"},
     "suffix-newline-injection": {"cStoreSuffix": "qa\nURL: nar/evil.nar.xz"},
     "deriver-newline-injection": {"cDeriver": "x.drv\nURL: nar/evil.nar.xz"},
+    "deriver-not-a-derivation": {"cDeriver": "foo"},
+    "deriver-missing": {"cDeriver": None},
     "nar-hash-newline-injection": {"cNarHash": "sha256:abc\nURL: nar/evil.nar.xz"},
     "reference-newline-injection": {"cReferences": ["qa\nURL: nar/evil.nar.xz"]},
     "negative-size": {"cFileSize": -1},
@@ -67,11 +70,54 @@ def test_upload_complete_rejects_invalid_narinfo_fields(
     )
     assert status == 400
 
-    narinfo_status, _ = http_request(f"{nix_cache_url}/{store_hash}.narinfo")
-    assert narinfo_status == 404
+    if "cStoreHash" not in overrides:
+        narinfo_status, _ = http_request(f"{nix_cache_url}/{store_hash}.narinfo")
+        assert narinfo_status == 404
 
     abort_status, _ = http_request(url=f"{upload_url}/abort", method="POST", headers=[auth], data="{}")
     assert abort_status == 200
+
+
+@pytest.mark.security
+@pytest.mark.requires_token
+def test_upload_complete_accepts_dot_leading_store_names(
+    require_api_endpoint: None,
+    require_cache_token: None,
+    create_upload: Callable[[], str],
+    http_request: Callable[..., tuple[int, str]],
+    random_nix_hash: Callable[[int], str],
+    api_base_url: str,
+    nix_cache_url: str,
+    cache_name: str,
+    cache_auth_token: str,
+) -> None:
+    """Nix allows names like `.zshrc` (from `${./.zshrc}`); validation must not break pushing them."""
+    del require_api_endpoint, require_cache_token
+    nar_id = create_upload()
+    put_status, _ = http_request(url=f"{nix_cache_url}/{nar_id}", method="PUT", data="data")
+    assert put_status == 201
+
+    store_hash = random_nix_hash(32)
+    reference = f"{random_nix_hash(32)}-.qa-dotfile-dep"
+    body = _narinfo_create(
+        store_hash,
+        random_nix_hash(52),
+        cStoreSuffix=".qa-dotfile",
+        cDeriver=f"{random_nix_hash(32)}-.qa-dotfile.drv",
+        cReferences=[reference],
+    )
+    status, _ = http_request(
+        url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar/{nar_id}/complete",
+        method="POST",
+        headers=[f"Authorization: Bearer {cache_auth_token}", "Content-Type: application/json"],
+        data=json.dumps(body),
+    )
+    assert status == 200
+
+    narinfo_status, narinfo = http_request(f"{nix_cache_url}/{store_hash}.narinfo")
+    assert narinfo_status == 200
+    assert f"StorePath: /nix/store/{store_hash}-.qa-dotfile" in narinfo
+    assert reference in narinfo
 
 
 @pytest.mark.security

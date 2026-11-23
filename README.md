@@ -81,6 +81,7 @@ server:
   dht-bootstrap-port: 4223          # Bootstrap node port
   server-port: 5001                 # HTTP API port
   deploy-port: 5002                 # Deployment API port
+  remote-fallback: false            # Serve paths of other caches found via the DHT
   default-retention: 4              # Default retention period (days)
   default-port: 8080                # Default HTTP port
 ```
@@ -90,6 +91,12 @@ are created; the server prints them at startup (also `cache-server cache info <n
 Tokens of older versions, which were derived from the removed `key` setting, are
 replaced automatically on the next start, so clients must be given the new ones.
 A leftover `key` entry in the config is ignored.
+
+`remote-fallback` lets a cache answer misses by fetching narinfos and NARs from
+other caches it finds in the DHT. Anyone can write to the DHT, so the server then
+requests URLs chosen by strangers; only enable it on a DHT network you control.
+Remote narinfos are forwarded unchanged, so clients must trust the remote cache's
+own signing key.
 
 
 ### 📦 Cache Instances

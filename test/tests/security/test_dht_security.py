@@ -93,21 +93,19 @@ def fake_peer(tmp_path: Path) -> Iterator[tuple[str, Path]]:
 
 @pytest.mark.security
 @pytest.mark.requires_token
-def test_remote_narinfo_is_not_signed_with_cache_key(
+def test_dht_only_narinfo_is_not_served_by_default(
     require_api_endpoint: None,
     require_nix_cache_endpoint: None,
     require_cache_token: None,
     fake_peer: tuple[str, Path],
-    get_json: Callable[[str], dict],
     http_request: Callable[..., tuple[int, str]],
     dht_values: Callable[[str], list[str]],
     random_nix_hash: Callable[[int], str],
     api_base_url: str,
     nix_cache_url: str,
-    cache_name: str,
     cache_auth_token: str,
 ) -> None:
-    """A narinfo found through the DHT comes from an untrusted peer and must not get this cache's signature."""
+    """DHT entries are written by anyone; by default the cache must not fetch or re-sign what they point to."""
     del require_api_endpoint, require_nix_cache_endpoint, require_cache_token
     peer_url, peer_root = fake_peer
 
@@ -140,10 +138,6 @@ def test_remote_narinfo_is_not_signed_with_cache_key(
         "injected peer is not visible in the DHT"
     )
 
-    signing_key = get_json(f"{api_base_url}/api/v1/cache/{cache_name}?")["publicSigningKeys"][0]
-    key_name = signing_key.split(":", 1)[0]
-
     status, narinfo = http_request(f"{nix_cache_url}/{store_hash}.narinfo")
-    assert status == 200, "narinfo of a DHT peer should be served unmodified"
-    assert f"Sig: {key_name}:" not in narinfo
-    assert f"StorePath: /nix/store/{store_hash}-qa-injected" in narinfo
+    assert status == 404
+    assert "qa-injected" not in narinfo
