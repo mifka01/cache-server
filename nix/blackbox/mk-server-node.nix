@@ -22,6 +22,8 @@
   ...
 }: {
   networking.hostName = nodeName;
+  # Room for multi-part uploads (parts and assembled NAR exist side by side).
+  virtualisation.diskSize = 4096;
   networking.firewall.enable = true;
   networking.firewall.allowedTCPPorts = [ 22 80 serverPort deployPort cachePort privateCachePort dhtPort bootstrapDhtPort ];
   networking.firewall.allowedUDPPorts = [ dhtPort bootstrapDhtPort ];
@@ -52,6 +54,9 @@
     serviceConfig = {
       Type = "simple";
       Restart = "on-failure";
+      # Only the main process gets SIGTERM, as when the server runs outside systemd;
+      # it has to stop its cache processes itself.
+      KillMode = "process";
       Environment = [ "XDG_CONFIG_HOME=/var/lib" ];
       ExecStart = "${cacheServerPkg}/bin/cache-server";
     };

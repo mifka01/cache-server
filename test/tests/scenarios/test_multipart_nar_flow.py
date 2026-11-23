@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import json
+import base64
+import hashlib
 from typing import Any, Callable
 
 import pytest
@@ -11,100 +12,101 @@ import pytest
 def test_multipart_nar_abort_rejects_followup_put(
     require_api_endpoint: None,
     require_cache_token: None,
-    request_json: Callable[..., tuple[int, Any]],
-    http_request: Callable[..., tuple[int, str]],
-    api_base_url: str,
-    cache_name: str,
-    nix_cache_url: str,
-    cache_auth_token: str,
+    create_upload: Callable[[], str],
+    part_url: Callable[[str, int, bytes], str],
+    put_part: Callable[..., tuple[int, dict[str, str]]],
+    abort_upload: Callable[[str], int],
 ) -> None:
     del require_api_endpoint, require_cache_token
+    nar_id = create_upload()
+    url = part_url(nar_id, 1, b"chunk-after-abort")
 
-    status, payload = request_json(
-        url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar?compression=xz",
-        method="POST",
-        headers=[f"Authorization: Bearer {cache_auth_token}"],
-        data="{}",
-    )
-    assert status == 200
-    assert isinstance(payload, dict)
+    assert abort_upload(nar_id) == 200
 
-    nar_id = str(payload["narId"])
-
-    abort_status, _ = http_request(
-        url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar/{nar_id}/abort",
-        method="POST",
-        headers=[f"Authorization: Bearer {cache_auth_token}"],
-        data="{}",
-    )
-    assert abort_status == 200
-
-    put_status, _ = http_request(
-        url=f"{nix_cache_url}/{nar_id}",
-        method="PUT",
-        data="chunk-after-abort",
-    )
+    put_status, _ = put_part(url, b"chunk-after-abort")
     assert put_status == 400
 
 
 @pytest.mark.scenario
 @pytest.mark.requires_token
-def test_multipart_nar_complete_creates_retrievable_narinfo(
+def test_multipart_nar_parts_are_assembled_in_order(
     require_api_endpoint: None,
     require_cache_token: None,
-    request_json: Callable[..., tuple[int, Any]],
+    upload_parts: Callable[[list[bytes]], tuple[str, list[dict[str, Any]]]],
+    complete_upload: Callable[..., int],
+    narinfo_create: Callable[..., dict[str, Any]],
+    narinfo_value: Callable[[str, str], str],
     http_request: Callable[..., tuple[int, str]],
-    api_base_url: str,
-    cache_name: str,
     nix_cache_url: str,
-    cache_auth_token: str,
-    random_nix_hash: Callable[[int], str],
 ) -> None:
     del require_api_endpoint, require_cache_token
+    parts = [b"first-part|", b"second-part|", b"third-part"]
+    data = b"".join(parts)
 
-    status, payload = request_json(
-        url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar?compression=xz",
-        method="POST",
-        headers=[f"Authorization: Bearer {cache_auth_token}"],
-        data="{}",
-    )
-    assert status == 200
-    assert isinstance(payload, dict)
+    nar_id, completed = upload_parts(parts)
+    narinfo = narinfo_create(data, cStoreSuffix="qa-multipart")
+    assert complete_upload(nar_id, narinfo, completed) == 200
 
-    nar_id = str(payload["narId"])
-    put_status, _ = http_request(
-        url=f"{nix_cache_url}/{nar_id}",
-        method="PUT",
-        data="multipart-content",
-    )
-    assert put_status == 201
-
-    store_hash = random_nix_hash(32)
-    file_hash = random_nix_hash(52)
-    complete_body = {
-        "narInfoCreate": {
-            "cStoreHash": store_hash,
-            "cStoreSuffix": "qa-multipart",
-            "cFileHash": file_hash,
-            "cFileSize": 17,
-            "cNarHash": f"sha256:{random_nix_hash(52)}",
-            "cNarSize": 17,
-            "cDeriver": "unknown-deriver",
-            "cReferences": [],
-        }
-    }
-
-    complete_status, _ = http_request(
-        url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar/{nar_id}/complete",
-        method="POST",
-        headers=[
-            f"Authorization: Bearer {cache_auth_token}",
-            "Content-Type: application/json",
-        ],
-        data=json.dumps(complete_body),
-    )
-    assert complete_status == 200
-
-    narinfo_status, narinfo = http_request(f"{nix_cache_url}/{store_hash}.narinfo")
+    narinfo_status, text = http_request(f"{nix_cache_url}/{narinfo['cStoreHash']}.narinfo")
     assert narinfo_status == 200
-    assert "StorePath:" in narinfo
+    assert narinfo_value(text, "StorePath") == f"/nix/store/{narinfo['cStoreHash']}-qa-multipart"
+    assert narinfo_value(text, "FileSize") == str(len(data))
+
+    nar_status, nar = http_request(f"{nix_cache_url}/{narinfo_value(text, 'URL')}")
+    assert nar_status == 200
+    assert nar == data.decode()
+
+
+@pytest.mark.scenario
+@pytest.mark.requires_token
+def test_multipart_complete_rejects_content_not_matching_file_hash(
+    require_api_endpoint: None,
+    require_cache_token: None,
+    upload_parts: Callable[[list[bytes]], tuple[str, list[dict[str, Any]]]],
+    complete_upload: Callable[..., int],
+    narinfo_create: Callable[..., dict[str, Any]],
+    http_request: Callable[..., tuple[int, str]],
+    nix_cache_url: str,
+) -> None:
+    del require_api_endpoint, require_cache_token
+    nar_id, completed = upload_parts([b"uploaded-content"])
+    narinfo = narinfo_create(b"claimed-content!")
+
+    assert complete_upload(nar_id, narinfo, completed) == 400
+
+    narinfo_status, _ = http_request(f"{nix_cache_url}/{narinfo['cStoreHash']}.narinfo")
+    assert narinfo_status == 404
+
+
+@pytest.mark.scenario
+@pytest.mark.requires_token
+def test_multipart_complete_rejects_part_that_was_not_uploaded(
+    require_api_endpoint: None,
+    require_cache_token: None,
+    upload_parts: Callable[[list[bytes]], tuple[str, list[dict[str, Any]]]],
+    complete_upload: Callable[..., int],
+    narinfo_create: Callable[..., dict[str, Any]],
+) -> None:
+    del require_api_endpoint, require_cache_token
+    nar_id, completed = upload_parts([b"only-part"])
+    missing = {"partNumber": 2, "eTag": completed[0]["eTag"]}
+
+    assert complete_upload(nar_id, narinfo_create(b"only-part"), [*completed, missing]) == 400
+
+
+@pytest.mark.scenario
+@pytest.mark.requires_token
+def test_multipart_part_rejects_wrong_content_md5(
+    require_api_endpoint: None,
+    require_cache_token: None,
+    create_upload: Callable[[], str],
+    part_url: Callable[[str, int, bytes], str],
+    put_part: Callable[..., tuple[int, dict[str, str]]],
+) -> None:
+    del require_api_endpoint, require_cache_token
+    nar_id = create_upload()
+    url = part_url(nar_id, 1, b"expected")
+
+    expected_md5 = base64.b64encode(hashlib.md5(b"expected").digest()).decode()
+    status, _ = put_part(url, b"corrupted", content_md5=expected_md5)
+    assert status == 400

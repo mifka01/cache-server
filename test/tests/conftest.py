@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
 import secrets
@@ -277,6 +279,156 @@ def create_upload(
         return str(payload["narId"])
 
     return _create
+
+
+@pytest.fixture(scope="session")
+def put_part() -> Callable[..., tuple[int, dict[str, str]]]:
+    """PUT raw bytes to an upload URL; returns the status and lower-cased response headers."""
+
+    def _put(url: str, data: bytes, content_md5: str | None = None) -> tuple[int, dict[str, str]]:
+        args = [
+            "curl", "-sS", "-X", "PUT", "--max-time", "300", "-D", "-", "-o", "/dev/null",
+            "-H", "Content-Type: application/octet-stream", "-H", "Expect:", "--data-binary", "@-",
+        ]
+        if content_md5 is not None:
+            args.extend(["-H", f"Content-MD5: {content_md5}"])
+        args.append(url)
+
+        result = subprocess.run(args, input=data, check=False, capture_output=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"curl failed: {result.stderr.decode().strip()}")
+
+        lines = result.stdout.decode().replace("\r", "").strip().splitlines()
+        status = int(lines[0].split()[1])
+        headers = {}
+        for line in lines[1:]:
+            name, _, value = line.partition(":")
+            headers[name.strip().lower()] = value.strip()
+        return status, headers
+
+    return _put
+
+
+def _content_md5(data: bytes) -> str:
+    return base64.b64encode(hashlib.md5(data).digest()).decode()
+
+
+@pytest.fixture(scope="session")
+def part_url(
+    request_json: Callable[..., tuple[int, Any]],
+    api_base_url: str,
+    cache_name: str,
+    cache_auth_token: str,
+) -> Callable[[str, int, bytes], str]:
+    """Ask for the upload URL of one part, like cachix does before each PUT."""
+
+    def _url(nar_id: str, part_number: int, data: bytes) -> str:
+        status, payload = request_json(
+            url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar/{nar_id}?uploadId={nar_id}&partNumber={part_number}",
+            method="POST",
+            headers=[f"Authorization: Bearer {cache_auth_token}", "Content-Type: application/json"],
+            data=json.dumps({"contentMD5": _content_md5(data)}),
+        )
+        assert status == 200
+        assert isinstance(payload, dict)
+        return str(payload["uploadUrl"])
+
+    return _url
+
+
+@pytest.fixture(scope="session")
+def upload_parts(
+    create_upload: Callable[[], str],
+    part_url: Callable[[str, int, bytes], str],
+    put_part: Callable[..., tuple[int, dict[str, str]]],
+) -> Callable[[list[bytes]], tuple[str, list[dict[str, Any]]]]:
+    """Upload parts the way cachix does, last part first to prove ordering; returns narId and completed parts."""
+
+    def _upload(parts: list[bytes]) -> tuple[str, list[dict[str, Any]]]:
+        nar_id = create_upload()
+        completed = []
+        for number in range(len(parts), 0, -1):
+            data = parts[number - 1]
+            status, headers = put_part(part_url(nar_id, number, data), data, _content_md5(data))
+            assert status == 201
+            assert "etag" in headers, "cachix only sends the part list when every PUT returns an ETag"
+            completed.append({"partNumber": number, "eTag": headers["etag"]})
+        return nar_id, sorted(completed, key=lambda part: part["partNumber"])
+
+    return _upload
+
+
+@pytest.fixture(scope="session")
+def narinfo_create(random_nix_hash: Callable[[int], str]) -> Callable[..., dict[str, Any]]:
+    """`narInfoCreate` describing the given compressed NAR content; keyword arguments replace fields."""
+
+    def _build(data: bytes, **overrides: Any) -> dict[str, Any]:
+        body: dict[str, Any] = {
+            "cStoreHash": random_nix_hash(32),
+            "cStoreSuffix": "qa-upload",
+            "cFileHash": hashlib.sha256(data).hexdigest(),
+            "cFileSize": len(data),
+            "cNarHash": f"sha256:{random_nix_hash(52)}",
+            "cNarSize": len(data),
+            "cDeriver": "unknown-deriver",
+            "cReferences": [],
+        }
+        body.update(overrides)
+        return body
+
+    return _build
+
+
+@pytest.fixture(scope="session")
+def complete_upload(
+    http_request: Callable[..., tuple[int, str]],
+    api_base_url: str,
+    cache_name: str,
+    cache_auth_token: str,
+) -> Callable[[str, dict[str, Any], list[dict[str, Any]] | None], int]:
+    """Complete a multipart upload; returns the HTTP status."""
+
+    def _complete(nar_id: str, narinfo: dict[str, Any], parts: list[dict[str, Any]] | None) -> int:
+        status, _ = http_request(
+            url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar/{nar_id}/complete?uploadId={nar_id}",
+            method="POST",
+            headers=[f"Authorization: Bearer {cache_auth_token}", "Content-Type: application/json"],
+            data=json.dumps({"parts": parts, "narInfoCreate": narinfo}),
+        )
+        return status
+
+    return _complete
+
+
+@pytest.fixture(scope="session")
+def abort_upload(
+    http_request: Callable[..., tuple[int, str]],
+    api_base_url: str,
+    cache_name: str,
+    cache_auth_token: str,
+) -> Callable[[str], int]:
+    def _abort(nar_id: str) -> int:
+        status, _ = http_request(
+            url=f"{api_base_url}/api/v1/cache/{cache_name}/multipart-nar/{nar_id}/abort?uploadId={nar_id}",
+            method="POST",
+            headers=[f"Authorization: Bearer {cache_auth_token}"],
+            data="{}",
+        )
+        return status
+
+    return _abort
+
+
+@pytest.fixture(scope="session")
+def narinfo_value() -> Callable[[str, str], str]:
+    def _value(narinfo: str, key: str) -> str:
+        prefix = f"{key}: "
+        for line in narinfo.splitlines():
+            if line.startswith(prefix):
+                return line[len(prefix):]
+        raise AssertionError(f"Missing key in narinfo: {key}")
+
+    return _value
 
 
 @pytest.fixture(scope="session")

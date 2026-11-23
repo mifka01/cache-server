@@ -54,6 +54,8 @@ in {
   ...
 }: {
   networking.hostName = nodeName;
+  # The writable Nix store lives in RAM; the large-push test adds 100 MiB paths.
+  virtualisation.memorySize = 2048;
   networking.firewall.enable = true;
   networking.firewall.allowedTCPPorts = [ 22 fakePeerPort ];
 
